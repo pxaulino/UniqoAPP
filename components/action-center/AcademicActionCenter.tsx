@@ -15,7 +15,7 @@ import {
   X,
 } from 'lucide-react-native';
 import React from 'react';
-import { Dimensions, Modal, PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
+import { BackHandler, Dimensions, PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -137,6 +137,17 @@ export default function AcademicActionCenter({ isVisible, onClose }: AcademicAct
   );
 
   React.useEffect(() => {
+    if (!isMounted) return undefined;
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      closeWithAnimation();
+      return true;
+    });
+
+    return () => subscription.remove();
+  }, [closeWithAnimation, isMounted]);
+
+  React.useEffect(() => {
     if (!isVisible && isMounted) {
       closeWithAnimation();
     }
@@ -200,148 +211,144 @@ export default function AcademicActionCenter({ isVisible, onClose }: AcademicAct
       else if (id === 'recommendations') router.push('/recomendaciones');
       else if (id === 'stats') router.push('/estadisticas-avanzadas');
       else if (id === 'notifications') router.push('/notificaciones');
+      else if (id === 'uni') router.push('/agregar-universidad');
       else if (id === 'settings') router.push('/perfil');
     });
   };
 
+  if (!isMounted) return null;
+
   return (
-    <Modal
-      visible={isMounted}
-      transparent
-      statusBarTranslucent
-      animationType="none"
-      onRequestClose={closeNow}
+    <Animated.View
+      pointerEvents="box-none"
+      style={[
+        { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 },
+        { justifyContent: 'flex-end' },
+      ]}
     >
+      <Pressable
+        style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
+        onPress={closeNow}
+      >
+        <Animated.View style={[{ flex: 1 }, backdropStyle]}>
+          <BlurOverlay intensity={36} />
+        </Animated.View>
+      </Pressable>
+
       <Animated.View
+        {...panResponder.panHandlers}
         style={[
-          { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 },
-          { justifyContent: 'flex-end' },
+          sheetStyle,
+          {
+            backgroundColor: COLORS.white,
+            borderTopLeftRadius: 30,
+            borderTopRightRadius: 30,
+            overflow: 'hidden',
+            paddingHorizontal: 24,
+            paddingTop: 8,
+            paddingBottom: bottomInset + 10,
+            maxHeight: SCREEN_HEIGHT * 0.85,
+            shadowColor: COLORS.primary,
+            shadowOffset: { width: 0, height: -12 },
+            shadowOpacity: 0.1,
+            shadowRadius: 28,
+            elevation: 20,
+          },
         ]}
       >
+        <View style={{ width: '100%', alignItems: 'center', paddingVertical: 16 }}>
+          <View style={{ width: 56, height: 5, borderRadius: 999, backgroundColor: COLORS.line }} />
+        </View>
+
+        <View style={{ marginBottom: 24 }}>
+          <Text style={[TYPOGRAPHY.screenTitle, { color: COLORS.text, fontSize: 26 }]}>
+            Centro Academico
+          </Text>
+          <Text style={[TYPOGRAPHY.body, { color: COLORS.muted, fontSize: 15, marginTop: 4 }]}>
+            Gestiona rapidamente tu progreso
+          </Text>
+        </View>
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={(e) => {
+            isScrolledToTop.current = e.nativeEvent.contentOffset.y <= 0;
+          }}
+        >
+          <Text
+            style={[
+              TYPOGRAPHY.cardTitle,
+              { color: COLORS.muted, fontSize: 11, lineHeight: 16, textTransform: 'uppercase', marginBottom: 16 },
+            ]}
+          >
+            Acciones Principales
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+            {PRIMARY_ACTIONS.map((action, index) => (
+              <ActionCard
+                key={action.id}
+                index={index}
+                title={action.title}
+                subtitle={action.subtitle}
+                icon={action.icon}
+                colors={action.colors}
+                onPress={() => handleAction(action.id)}
+              />
+            ))}
+          </View>
+
+          <Text
+            style={[
+              TYPOGRAPHY.cardTitle,
+              {
+                color: COLORS.muted,
+                fontSize: 11,
+                lineHeight: 16,
+                textTransform: 'uppercase',
+                marginTop: 16,
+                marginBottom: 16,
+              },
+            ]}
+          >
+            Otras herramientas
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingBottom: 32 }}>
+            {SECONDARY_ACTIONS.map((action, index) => (
+              <ActionCard
+                key={action.id}
+                index={index + 4}
+                title={action.title}
+                icon={action.icon}
+                colors={action.colors}
+                onPress={() => handleAction(action.id)}
+              />
+            ))}
+          </View>
+        </ScrollView>
+
         <Pressable
-          style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
           onPress={closeNow}
+          style={{
+            position: 'absolute',
+            top: 24,
+            right: 24,
+            width: 40,
+            height: 40,
+            borderRadius: 999,
+            backgroundColor: COLORS.white,
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.05,
+            shadowRadius: 8,
+            elevation: 3,
+          }}
         >
-          <Animated.View style={[{ flex: 1 }, backdropStyle]}>
-            <BlurOverlay intensity={36} />
-          </Animated.View>
+          <X size={20} color={COLORS.text} />
         </Pressable>
-
-        <Animated.View
-          {...panResponder.panHandlers}
-          style={[
-            sheetStyle,
-            {
-              backgroundColor: COLORS.white,
-              borderTopLeftRadius: 30,
-              borderTopRightRadius: 30,
-              overflow: 'hidden',
-              paddingHorizontal: 24,
-              paddingTop: 8,
-              paddingBottom: bottomInset + 10,
-              maxHeight: SCREEN_HEIGHT * 0.85,
-              shadowColor: COLORS.primary,
-              shadowOffset: { width: 0, height: -12 },
-              shadowOpacity: 0.1,
-              shadowRadius: 28,
-              elevation: 20,
-            },
-          ]}
-        >
-          <View style={{ width: '100%', alignItems: 'center', paddingVertical: 16 }}>
-            <View style={{ width: 56, height: 5, borderRadius: 999, backgroundColor: COLORS.line }} />
-          </View>
-
-          <View style={{ marginBottom: 24 }}>
-            <Text style={[TYPOGRAPHY.screenTitle, { color: COLORS.text, fontSize: 26 }]}>
-              Centro Academico
-            </Text>
-            <Text style={[TYPOGRAPHY.body, { color: COLORS.muted, fontSize: 15, marginTop: 4 }]}>
-              Gestiona rapidamente tu progreso
-            </Text>
-          </View>
-
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            scrollEventThrottle={16}
-            onScroll={(e) => {
-              isScrolledToTop.current = e.nativeEvent.contentOffset.y <= 0;
-            }}
-          >
-            <Text
-              style={[
-                TYPOGRAPHY.cardTitle,
-                { color: COLORS.muted, fontSize: 11, lineHeight: 16, textTransform: 'uppercase', marginBottom: 16 },
-              ]}
-            >
-              Acciones Principales
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-              {PRIMARY_ACTIONS.map((action, index) => (
-                <ActionCard
-                  key={action.id}
-                  index={index}
-                  title={action.title}
-                  subtitle={action.subtitle}
-                  icon={action.icon}
-                  colors={action.colors}
-                  onPress={() => handleAction(action.id)}
-                />
-              ))}
-            </View>
-
-            <Text
-              style={[
-                TYPOGRAPHY.cardTitle,
-                {
-                  color: COLORS.muted,
-                  fontSize: 11,
-                  lineHeight: 16,
-                  textTransform: 'uppercase',
-                  marginTop: 16,
-                  marginBottom: 16,
-                },
-              ]}
-            >
-              Otras herramientas
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingBottom: 32 }}>
-              {SECONDARY_ACTIONS.map((action, index) => (
-                <ActionCard
-                  key={action.id}
-                  index={index + 4}
-                  title={action.title}
-                  icon={action.icon}
-                  colors={action.colors}
-                  onPress={() => handleAction(action.id)}
-                />
-              ))}
-            </View>
-          </ScrollView>
-
-          <Pressable
-            onPress={closeNow}
-            style={{
-              position: 'absolute',
-              top: 24,
-              right: 24,
-              width: 40,
-              height: 40,
-              borderRadius: 999,
-              backgroundColor: COLORS.white,
-              alignItems: 'center',
-              justifyContent: 'center',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.05,
-              shadowRadius: 8,
-              elevation: 3,
-            }}
-          >
-            <X size={20} color={COLORS.text} />
-          </Pressable>
-        </Animated.View>
       </Animated.View>
-    </Modal>
+    </Animated.View>
   );
 }

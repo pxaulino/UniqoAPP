@@ -32,7 +32,7 @@ export default function FloatingTabBar() {
       <View
         pointerEvents="box-none"
         style={{ paddingBottom: Math.max(insets.bottom, 10) }}
-        className="absolute bottom-0 left-0 right-0 px-5 pt-3"
+        className="absolute bottom-0 left-0 right-0 px-5 pt-10"
       >
         <View
           className="h-[78px] flex-row items-center justify-between rounded-[30px] border border-white/80 bg-white px-3"
@@ -72,10 +72,7 @@ export default function FloatingTabBar() {
             );
           })}
 
-          <FloatingActionButton 
-            isOpen={isActionCenterVisible}
-            onPress={() => setIsActionCenterVisible(!isActionCenterVisible)} 
-          />
+          <View className="w-[74px]" />
 
           {TABS.slice(2).map((tab) => {
             const active = isTabActive(pathname, tab.route);
@@ -104,6 +101,25 @@ export default function FloatingTabBar() {
               </Pressable>
             );
           })}
+        </View>
+
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: 'absolute',
+            top: 8,
+            left: '50%',
+            width: 78,
+            height: 78,
+            marginLeft: -39,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <FloatingActionButton
+            isOpen={isActionCenterVisible}
+            onPress={() => setIsActionCenterVisible((current) => !current)}
+          />
         </View>
       </View>
 
