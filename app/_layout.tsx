@@ -38,6 +38,14 @@ export default function RootLayout() {
           options={{ headerShown: false, presentation: 'card' }}
         />
         <Stack.Screen
+          name="register"
+          options={{ headerShown: false, presentation: 'card' }}
+        />
+        <Stack.Screen
+          name="login"
+          options={{ headerShown: false, presentation: 'card' }}
+        />
+        <Stack.Screen
           name="agregar-pensum"
           options={{ headerShown: false, presentation: 'modal' }}
         />

@@ -55,6 +55,7 @@ export default function FloatingActionButton({ onPress, isOpen }: FloatingAction
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
+      hitSlop={12}
       style={[
         fabStyle,
         {
@@ -64,7 +65,7 @@ export default function FloatingActionButton({ onPress, isOpen }: FloatingAction
           elevation: 16,
         }
       ]}
-      className="-mt-10 h-[62px] w-[62px] items-center justify-center rounded-full"
+      className="h-[62px] w-[62px] items-center justify-center rounded-full"
     >
       <LinearGradient
         colors={['#7A5CFF', '#5B38F5']}

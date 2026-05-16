@@ -3,6 +3,9 @@ const { withNativeWind } = require('nativewind/metro');
 
 const config = getDefaultConfig(__dirname);
 
+config.resolver.unstable_enablePackageExports = true;
+config.resolver.resolverMainFields = ['react-native', 'browser', 'module', 'main'];
+
 module.exports = withNativeWind(config, {
   input: './global.css',
 });
