@@ -64,9 +64,9 @@ export default function Skeleton({
     >
 
       <Animated.View
-        pointerEvents="none"
         style={[
           {
+            pointerEvents: 'none',
             position: 'absolute',
             top: -10,
             bottom: -10,

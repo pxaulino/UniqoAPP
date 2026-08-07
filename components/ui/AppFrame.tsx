@@ -7,8 +7,8 @@ function WebStatusBar() {
 
   return (
     <View
-      pointerEvents="none"
       style={{
+        pointerEvents: 'none',
         position: 'absolute',
         top: 0,
         left: 0,
@@ -95,8 +95,8 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
       style={{ flex: 1, alignItems: 'center' }}
     >
       <View
-        pointerEvents="none"
         style={{
+          pointerEvents: 'none',
           position: 'absolute',
           top: 58,
           right: -44,
@@ -107,8 +107,8 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
         }}
       />
       <View
-        pointerEvents="none"
         style={{
+          pointerEvents: 'none',
           position: 'absolute',
           bottom: 120,
           left: -36,

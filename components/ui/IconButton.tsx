@@ -3,6 +3,7 @@ import { Pressable, StyleProp, Text, ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { COLORS } from '@/constants/mockData';
 import { TYPOGRAPHY } from '@/constants/typography';
+import { platformShadow } from '@/utils/platformStyles';
 
 type IconButtonProps = {
   icon: React.ReactNode;
@@ -49,11 +50,13 @@ export default function IconButton({
           backgroundColor: bgColor,
           alignItems: 'center',
           justifyContent: 'center',
-          shadowColor: COLORS.shadow,
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.12,
-          shadowRadius: 18,
-          elevation: 6,
+          ...platformShadow({
+            color: COLORS.shadow,
+            offset: { width: 0, height: 8 },
+            opacity: 0.12,
+            radius: 18,
+            elevation: 6,
+          }),
         },
         animatedStyle,
         style,

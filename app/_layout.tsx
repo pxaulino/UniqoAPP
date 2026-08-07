@@ -9,7 +9,7 @@ import AppFrame from '@/components/ui/AppFrame';
 configureTypography();
 
 export const unstable_settings = {
-  anchor: '(tabs)',
+  anchor: 'index',
 };
 
 export default function RootLayout() {
@@ -24,6 +24,9 @@ export default function RootLayout() {
           animation: 'slide_from_right',
         }}
       >
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="login" options={{ headerShown: false, presentation: 'card' }} />
+        <Stack.Screen name="register" options={{ headerShown: false, presentation: 'card' }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
           name="universidad/[id]"

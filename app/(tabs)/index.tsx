@@ -2,480 +2,494 @@ import { HomeSkeleton } from '@/components/skeleton/ScreenSkeletons';
 import Card from '@/components/ui/Card';
 import GradientCard from '@/components/ui/GradientCard';
 import ProgressBar from '@/components/ui/ProgressBar';
-import { AcademicRecordStatus, academicRecords, COLORS, nextClass, notifications, progressData, quickActions } from '@/constants/mockData';
-import { useFakeLoading } from '@/hooks/useFakeLoading';
-import { useScrollAnimationValues } from '@/hooks/useScrollAnimations';
+import { COLORS } from '@/constants/mockData';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import {
-  ArrowUpRight,
+  AlertCircle,
+  ArrowRight,
   Bell,
   BookMarked,
   CalendarDays,
-  ChevronRight,
-  CircleCheck,
+  CheckCircle2,
   Clock3,
-  X,
+  GraduationCap,
+  LockKeyhole,
+  RefreshCcw,
 } from 'lucide-react-native';
 import React from 'react';
-import { Dimensions, Modal, PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
-import Animated, {
-  Easing,
-  Extrapolate,
-  FadeIn,
-  interpolate,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { platformShadow } from '@/utils/platformStyles';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const SUMMARY_CLOSE_DURATION = 220;
-
-type SummaryAction = {
-  id: 'approved' | 'in_progress' | 'pending' | 'credits';
-  label: string;
-  value: number;
-  suffix?: string;
-  modalTitle: string;
-  modalCta: string;
-  status?: AcademicRecordStatus;
-  icon: typeof CircleCheck;
-  color: string;
-  bg: string;
+type DashboardUser = {
+  nombre?: string;
+  nombre_completo?: string;
+  foto_url?: string;
+  tiene_pensum_activo?: boolean;
+  progreso_porcentaje?: number;
+  creditos_aprobados?: number;
+  creditos_totales?: number;
+  materias_aprobadas?: number;
+  materias_totales?: number;
+  materias_en_curso?: number;
+  materias_pendientes?: number;
+  periodo_actual?: number;
+  tipo_periodo?: string;
 };
 
-const summary: SummaryAction[] = [
-  {
-    id: 'approved',
-    label: 'Aprobadas',
-    value: academicRecords.filter((item) => item.status === 'approved').length,
-    modalTitle: 'Materias aprobadas',
-    modalCta: 'Ver todas las aprobadas',
-    status: 'approved',
-    icon: CircleCheck,
-    color: COLORS.success,
-    bg: COLORS.successLight,
-  },
-  {
-    id: 'in_progress',
-    label: 'En curso',
-    value: academicRecords.filter((item) => item.status === 'in_progress').length,
-    modalTitle: 'Materias en curso',
-    modalCta: 'Ver materias seleccionadas',
-    status: 'in_progress',
-    icon: Clock3,
-    color: COLORS.warning,
-    bg: COLORS.warningLight,
-  },
-  {
-    id: 'pending',
-    label: 'Pendientes',
-    value: academicRecords.filter((item) => item.status === 'pending').length,
-    modalTitle: 'Materias pendientes',
-    modalCta: 'Ver todas las pendientes',
-    status: 'pending',
-    icon: CalendarDays,
-    color: COLORS.danger,
-    bg: COLORS.dangerLight,
-  },
-  {
-    id: 'credits',
-    label: 'Creditos',
-    value: progressData.creditsApproved,
-    suffix: `/${progressData.totalCredits}`,
-    modalTitle: 'Creditos aprobados',
-    modalCta: 'Ver mi progreso',
-    icon: BookMarked,
-    color: COLORS.primary,
-    bg: COLORS.primaryLight,
-  },
-];
+type DashboardDoc = Record<string, unknown> | null;
+
+type DashboardSubject = {
+  id: string;
+  nombre?: string;
+  name?: string;
+  materia_nombre?: string;
+  codigo?: string;
+  code?: string;
+  materia_codigo?: string;
+  creditos?: number;
+  credits?: number;
+  periodo?: number;
+  periodo_numero?: number;
+  cuatrimestre?: number;
+  semestre?: number;
+  estado?: SubjectStatus;
+  motivo_bloqueo?: string;
+};
+
+type SubjectStatus = 'disponible' | 'bloqueada' | 'en_curso' | 'aprobada' | 'reprobada' | 'retirada' | string;
+
+type DashboardData = {
+  user: DashboardUser;
+  blocked?: boolean;
+  reason?: string;
+  hasActivePensum?: boolean;
+  university: DashboardDoc;
+  career: DashboardDoc;
+  pensum: DashboardDoc;
+  userPensum: DashboardDoc;
+  subjects: DashboardSubject[];
+};
+
+const statusStyles: Record<string, { label: string; color: string; bg: string }> = {
+  disponible: { label: 'Disponible', color: COLORS.secondary, bg: COLORS.blueLight },
+  bloqueada: { label: 'Bloqueada', color: COLORS.muted, bg: COLORS.lockedLight },
+  en_curso: { label: 'En curso', color: COLORS.warning, bg: COLORS.warningLight },
+  aprobada: { label: 'Aprobada', color: COLORS.success, bg: COLORS.successLight },
+  reprobada: { label: 'Reprobada', color: COLORS.danger, bg: COLORS.dangerLight },
+  retirada: { label: 'Retirada', color: COLORS.danger, bg: COLORS.dangerLight },
+};
+
+function getTextValue(data: DashboardDoc | DashboardSubject | DashboardUser, keys: string[], fallback = 'No disponible') {
+  if (!data) return fallback;
+
+  for (const key of keys) {
+    const value = data[key as keyof typeof data];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'number') return String(value);
+  }
+
+  return fallback;
+}
+
+function getNumberValue(value: unknown, fallback = 0) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function normalizeProgress(value: unknown) {
+  const progress = getNumberValue(value, 0);
+  return Math.max(0, Math.min(100, progress));
+}
+
+function getSubjectStatus(subject: DashboardSubject) {
+  const status = subject.estado || 'disponible';
+  return statusStyles[status] ?? { label: status.replace(/_/g, ' '), color: COLORS.primary, bg: COLORS.primaryLight };
+}
+
+function getFriendlyError(error: unknown) {
+  if (error instanceof Error && error.message) return error.message;
+  return 'No pudimos cargar tu inicio. Revisa tu conexion e intenta nuevamente.';
+}
+
+function ProfileAvatar({ user }: { user: DashboardUser }) {
+  if (user.foto_url) {
+    return (
+      <Image
+        source={{ uri: user.foto_url }}
+        contentFit="cover"
+        style={{
+          width: 50,
+          height: 50,
+          borderRadius: 16,
+          borderWidth: 2,
+          borderColor: COLORS.white,
+        }}
+      />
+    );
+  }
+
+  const initial = (user.nombre || user.nombre_completo || 'U').trim().charAt(0).toUpperCase();
+
+  return (
+    <View className="h-[50px] w-[50px] items-center justify-center rounded-2xl bg-primaryLight">
+      <Text className="text-[20px] font-bold text-primary">{initial}</Text>
+    </View>
+  );
+}
+
+function StateScreen({
+  title,
+  message,
+  actionLabel,
+  onAction,
+  refreshing,
+  onRefresh,
+  icon,
+}: {
+  title: string;
+  message: string;
+  actionLabel: string;
+  onAction: () => void;
+  refreshing: boolean;
+  onRefresh: () => void;
+  icon: React.ReactNode;
+}) {
+  return (
+    <SafeAreaView className="flex-1 bg-bg">
+      <ScrollView
+        contentContainerClassName="flex-grow px-5 pb-32 pt-4"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
+      >
+        <View className="flex-1 justify-center">
+          <Card padding={22} radius={24}>
+            <View className="mb-5 h-14 w-14 items-center justify-center rounded-2xl bg-primaryLight">{icon}</View>
+            <Text className="text-[24px] font-bold leading-8 text-text">{title}</Text>
+            <Text className="mt-3 text-[15px] font-medium leading-6 text-muted">{message}</Text>
+            <Pressable
+              onPress={onAction}
+              className="mt-7 flex-row items-center justify-center rounded-[16px] bg-primary py-4"
+              style={{
+                ...platformShadow({
+                  color: COLORS.primary,
+                  offset: { width: 0, height: 12 },
+                  opacity: 0.18,
+                  radius: 20,
+                  elevation: 8,
+                }),
+              }}
+            >
+              <Text className="mr-2 text-[15px] font-bold text-white">{actionLabel}</Text>
+              <ArrowRight size={18} color={COLORS.white} />
+            </Pressable>
+          </Card>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function StatTile({
+  label,
+  value,
+  icon,
+  color,
+  bg,
+}: {
+  label: string;
+  value: string | number;
+  icon: React.ReactNode;
+  color: string;
+  bg: string;
+}) {
+  return (
+    <Card padding={14} radius={18} style={{ width: '48%', marginBottom: 12 }}>
+      <View style={{ backgroundColor: bg }} className="mb-3 h-11 w-11 items-center justify-center rounded-[14px]">
+        {icon}
+      </View>
+      <Text style={{ color }} className="text-[24px] font-bold">
+        {value}
+      </Text>
+      <Text className="mt-1 text-[12px] font-semibold leading-4 text-muted">{label}</Text>
+    </Card>
+  );
+}
 
 export default function HomeScreen() {
   const router = useRouter();
-  const loading = useFakeLoading(900);
-  const [activeSummary, setActiveSummary] = React.useState<SummaryAction | null>(null);
-  const [isSummaryModalMounted, setIsSummaryModalMounted] = React.useState(false);
-  const unreadNotifications = notifications.filter((item) => item.unread).length;
-  const modalCloseTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isClosingSummary = React.useRef(false);
-  const isModalScrolledToTop = React.useRef(true);
-  const modalOverlayOpacity = useSharedValue(0);
-  const modalTranslateY = useSharedValue(SCREEN_HEIGHT);
-  
-  // Scroll animation
-  const { scrollY, scrollHandler } = useScrollAnimationValues();
-  
-  const heroCardAnimatedStyle = useAnimatedStyle(() => {
-    const cardScale = interpolate(scrollY.value, [0, 200], [1, 0.97], Extrapolate.CLAMP);
-    const cardFade = interpolate(scrollY.value, [0, 300], [1, 0.5], Extrapolate.CLAMP);
-    const headerTranslateY = interpolate(scrollY.value, [0, 100], [0, 30], Extrapolate.CLAMP);
+  const [dashboard, setDashboard] = React.useState<DashboardData | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [refreshing, setRefreshing] = React.useState(false);
+  const [error, setError] = React.useState('');
 
-    return {
-      transform: [
-        { scale: cardScale },
-        { translateY: headerTranslateY },
-      ],
-      opacity: cardFade,
-    };
-  });
+  const loadDashboard = React.useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
+    if (mode === 'initial') setLoading(true);
+    if (mode === 'refresh') setRefreshing(true);
+    setError('');
 
-  React.useEffect(() => {
-    if (activeSummary) {
-      setIsSummaryModalMounted(true);
-      isClosingSummary.current = false;
-      if (modalCloseTimer.current) {
-        clearTimeout(modalCloseTimer.current);
-        modalCloseTimer.current = null;
+    try {
+      const firebaseConfig = (await import('@/src/config/firebase')) as {
+        auth: { currentUser: { uid: string } | null };
+      };
+      const currentUser = firebaseConfig.auth.currentUser;
+
+      if (!currentUser) {
+        throw new Error('No hay una sesion activa. Inicia sesion nuevamente para continuar.');
       }
-      modalOverlayOpacity.value = withTiming(1, {
-        duration: 160,
-        easing: Easing.out(Easing.cubic),
-      });
-      modalTranslateY.value = withSpring(0, {
-        damping: 30,
-        stiffness: 260,
-        mass: 0.9,
-      });
+
+      const { getCurrentUserDashboard } = await import('@/src/services/dashboardService');
+      const data = await getCurrentUserDashboard(currentUser.uid);
+      setDashboard(data as DashboardData);
+    } catch (loadError) {
+      setError(getFriendlyError(loadError));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-  }, [activeSummary, modalOverlayOpacity, modalTranslateY]);
-
-  React.useEffect(() => {
-    return () => {
-      if (modalCloseTimer.current) {
-        clearTimeout(modalCloseTimer.current);
-      }
-    };
   }, []);
 
-  const closeSummaryModal = React.useCallback(
-    (afterClose?: () => void) => {
-      if (isClosingSummary.current) return;
-      isClosingSummary.current = true;
-      modalOverlayOpacity.value = withTiming(0, {
-        duration: SUMMARY_CLOSE_DURATION,
-        easing: Easing.out(Easing.cubic),
-      });
-      modalTranslateY.value = withTiming(SCREEN_HEIGHT, {
-        duration: SUMMARY_CLOSE_DURATION,
-        easing: Easing.out(Easing.cubic),
-      });
-      modalCloseTimer.current = setTimeout(() => {
-        modalCloseTimer.current = null;
-        setIsSummaryModalMounted(false);
-        setActiveSummary(null);
-        modalTranslateY.value = SCREEN_HEIGHT;
-        afterClose?.();
-      }, SUMMARY_CLOSE_DURATION);
-    },
-    [modalOverlayOpacity, modalTranslateY]
-  );
+  React.useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
 
-  const modalBackdropStyle = useAnimatedStyle(() => ({
-    opacity: modalOverlayOpacity.value,
-  }));
-
-  const modalSheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: modalTranslateY.value }],
-  }));
-
-  const modalPanResponder = React.useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-          const isMostlyVertical = Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.35;
-          const isDraggingDown = gestureState.dy > 10;
-          return isMostlyVertical && isDraggingDown && isModalScrolledToTop.current;
-        },
-        onStartShouldSetPanResponder: (e) => e.nativeEvent.locationY < 132,
-        onPanResponderMove: (_, gestureState) => {
-          if (gestureState.dy > 0) {
-            modalTranslateY.value = Math.min(gestureState.dy, SCREEN_HEIGHT * 0.55);
-          }
-        },
-        onPanResponderRelease: (_, gestureState) => {
-          const shouldClose = gestureState.dy > 135 || (gestureState.dy > 64 && gestureState.vy > 1.05);
-          if (shouldClose) {
-            closeSummaryModal();
-            return;
-          }
-          modalTranslateY.value = withSpring(0, { damping: 28, stiffness: 260 });
-        },
-        onPanResponderTerminate: () => {
-          modalTranslateY.value = withSpring(0, { damping: 28, stiffness: 260 });
-        },
-      }),
-    [closeSummaryModal, modalTranslateY]
-  );
+  const onRefresh = React.useCallback(() => {
+    loadDashboard('refresh');
+  }, [loadDashboard]);
 
   if (loading) return <HomeSkeleton />;
 
-  const modalRecords = activeSummary?.status
-    ? academicRecords.filter((item) => item.status === activeSummary.status).slice(0, 5)
-    : [];
+  if (error) {
+    return (
+      <StateScreen
+        title="No pudimos cargar tu inicio"
+        message={error}
+        actionLabel="Intentar de nuevo"
+        onAction={() => loadDashboard()}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        icon={<AlertCircle size={28} color={COLORS.primary} />}
+      />
+    );
+  }
 
-  const handleSummaryPress = (item: SummaryAction) => {
-    if (item.id === 'in_progress') {
-      router.push('/(tabs)/planner' as never);
-      return;
-    }
+  if (!dashboard) {
+    return (
+      <StateScreen
+        title="Sin datos disponibles"
+        message="No encontramos informacion para mostrar en este momento."
+        actionLabel="Recargar"
+        onAction={() => loadDashboard()}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        icon={<RefreshCcw size={28} color={COLORS.primary} />}
+      />
+    );
+  }
 
-    if (item.id === 'credits') {
-      return;
-    }
+  if (dashboard.blocked) {
+    return (
+      <StateScreen
+        title="Acceso bloqueado"
+        message={dashboard.reason || 'Tu cuenta no esta activa. Contacta soporte para revisar tu acceso.'}
+        actionLabel="Revisar perfil"
+        // ProfileScreen placeholder route.
+        onAction={() => router.push('/perfil' as never)}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        icon={<LockKeyhole size={28} color={COLORS.primary} />}
+      />
+    );
+  }
 
-    setActiveSummary(item);
-  };
+  const user = dashboard.user;
+  const hasActivePensum = dashboard.hasActivePensum && user.tiene_pensum_activo;
+  const firstName = getTextValue(user, ['nombre', 'nombre_completo'], 'Estudiante').split(' ')[0];
+  const universityName = getTextValue(dashboard.university, ['nombre', 'name', 'nombre_completo', 'fullName'], 'Universidad pendiente');
+  const careerName = getTextValue(dashboard.career, ['nombre', 'name', 'nombre_carrera', 'titulo'], 'Carrera pendiente');
+  const pensumName = getTextValue(dashboard.pensum, ['nombre', 'name', 'version', 'plan'], 'Pensum activo');
+  const progress = normalizeProgress(user.progreso_porcentaje);
+  const progressRatio = progress / 100;
+  const subjectsPreview = [...(dashboard.subjects || [])].slice(0, 5);
+  const periodoLabel = `${getNumberValue(user.periodo_actual, 0)} ${user.tipo_periodo || 'periodo'}`;
 
-  const handleModalCta = () => {
-    if (!activeSummary) return;
-
-    const status = activeSummary.status;
-    closeSummaryModal(() => {
-      if (status === 'approved' || status === 'pending') {
-        router.push(`/materias/${status}` as never);
-      }
-    });
-  };
+  if (!hasActivePensum) {
+    return (
+      <StateScreen
+        title={`Hola, ${firstName}`}
+        message="Todavia no tienes una carrera activa. Elige tu universidad, carrera y pensum para activar tu dashboard academico."
+        actionLabel="Elegir universidad"
+        // OnboardingUniversityScreen placeholder route.
+        onAction={() => router.push('/agregar-universidad' as never)}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        icon={<GraduationCap size={29} color={COLORS.primary} />}
+      />
+    );
+  }
 
   return (
     <Animated.View entering={FadeIn.duration(260)} className="flex-1">
       <SafeAreaView className="flex-1 bg-bg">
-        <Animated.ScrollView 
-          scrollEventThrottle={16}
-          onScroll={scrollHandler}
-          showsVerticalScrollIndicator={false} 
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 144, paddingTop: 12 }}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerClassName="px-5 pb-36 pt-3"
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
         >
-        <View className="mb-4 flex-row items-center justify-between">
-          <View className="flex-row items-center gap-3">
-            <Image
-              source={require('@/assets/images/daniel.webp')}
-              contentFit="cover"
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 16,
-                borderWidth: 2,
-                borderColor: COLORS.white,
-              }}
-            />
-            <View>
-              <Text className="text-[20px] font-bold  text-text">Hola, Daniel!</Text>
-              <Text className="mt-1 text-[13px] font-semibold text-muted">Desarrollo de Software - Itla</Text>
-            </View>
-          </View>
-          <Pressable
-            onPress={() => router.push('/notificaciones' as never)}
-            className="h-11 w-11 items-center justify-center"
-          >
-            <Bell size={25} color={COLORS.text} strokeWidth={1.9} />
-            {unreadNotifications > 0 ? (
-              <View className="absolute right-2.5 top-2 h-2.5 w-2.5 rounded-full bg-danger">
-                <View className="absolute -inset-0.5 rounded-full border border-bg" />
-              </View>
-            ) : null}
-          </Pressable>
-        </View>
-
-        <GradientCard colors={['#F8F5FF', '#E9E1FF']} padding={0} radius={18} className="mb-5" style={heroCardAnimatedStyle}>
-          <View className="h-[154px] flex-row items-center overflow-hidden rounded-[18px] px-5 py-4">
-            <View className="absolute right-[124px] top-5 h-2 w-2 rounded-full bg-primary/20" />
-            <View className="absolute right-[94px] top-10 h-1.5 w-1.5 rounded-full bg-bluex/20" />
-            <View className="z-10 flex-1">
-              <View className="mb-1 flex-row items-center gap-2">
-                <Text className="text-[14px] font-semibold text-muted">Progreso general</Text>
-                <View className="rounded-full bg-white/75 px-2 py-0.5">
-                  <Text className="text-[10px] font-semibold text-primary">Actualizado</Text>
-                </View>
-              </View>
-              <Text className="mt-2 text-[34px] font-bold  text-text">62%</Text>
-              <ProgressBar progress={0.62} color="#5B38F5" trackColor="#D9D1FF" height={7} style={{ marginTop: 9, width: 150 }} />
-              <Text className="mt-3 text-[13px] font-medium text-muted">124 / 200 creditos</Text>
-            </View>
-            <View className="absolute bottom-0 right-0 h-[154px] w-[155px] items-end justify-end overflow-hidden">
-              <Image
-                source={require('@/assets/images/estudiante.png')}
-                contentFit="contain"
-                style={{ width: 158, height: 158 }}
-              />
-            </View>
-          </View>
-        </GradientCard>
-
-        <View className="mb-5 flex-row justify-between">
-          {quickActions.map((action, index) => {
-            const Icon = action.icon;
-            return (
-              <Pressable
-                key={action.id}
-                onPress={() => router.push(action.route as never)}
-                className="w-[76px] items-center"
-              >
-                <Card delay={index * 55} padding={0} radius={18} border={false} style={{ backgroundColor: action.color }}>
-                  <View className="h-[64px] w-[64px] items-center justify-center rounded-[18px]">
-                    <Icon size={30} color={COLORS.white} strokeWidth={1.9} />
-                  </View>
-                </Card>
-                <Text className="mt-2 text-center text-[12px] font-bold leading-4 text-text" numberOfLines={2}>
-                  {action.label}
+          <View className="mb-5 flex-row items-center justify-between">
+            {/* ProfileScreen placeholder route. */}
+            <Pressable onPress={() => router.push('/perfil' as never)} className="flex-1 flex-row items-center gap-3">
+              <ProfileAvatar user={user} />
+              <View className="flex-1">
+                <Text className="text-[21px] font-bold text-text">Hola, {firstName}</Text>
+                <Text className="mt-1 text-[12px] font-semibold text-muted" numberOfLines={1}>
+                  {universityName}
                 </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View className="mb-3 flex-row items-center justify-between">
-          <Text className="text-[17px] font-bold  text-text">Proxima clase</Text>
-          <Text className="text-[12px] font-medium text-muted">Hoy</Text>
-        </View>
-        <Card padding={14} radius={22} className="mb-6" style={{ backgroundColor: '#FFF0F6' }}>
-          <View className="flex-row items-center gap-3">
-            <View className="h-14 w-14 items-center justify-center rounded-2xl bg-white">
-              <BookMarked size={25} color={COLORS.danger} strokeWidth={1.8} />
-            </View>
-            <View className="flex-1">
-              <Text className="text-[14px] font-bold text-text">{nextClass.subject}</Text>
-              <Text className="mt-1 text-[13px] font-semibold text-muted">
-                {nextClass.day}, {nextClass.time}
-              </Text>
-              <Text className="text-[13px] font-semibold text-muted">{nextClass.room}</Text>
-            </View>
-            <View className="mr-1 h-2 w-2 rounded-full bg-danger" />
-            <ChevronRight size={20} color={COLORS.text} />
+                <Text className="text-[12px] font-semibold text-muted" numberOfLines={1}>
+                  {careerName}
+                </Text>
+              </View>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push('/notificaciones' as never)}
+              className="h-11 w-11 items-center justify-center rounded-2xl bg-white"
+            >
+              <Bell size={22} color={COLORS.text} strokeWidth={1.9} />
+            </Pressable>
           </View>
-        </Card>
 
-        <View className="mb-3 flex-row items-center justify-between">
-          <Text className="text-[17px] font-bold  text-text">Resumen rapido</Text>
-          <Pressable onPress={() => router.push('/(tabs)/progreso' as never)}>
-            <Text className="text-[13px] font-bold text-primary">Ver mi progreso</Text>
-          </Pressable>
-        </View>
-        <Card padding={0} radius={16} className="overflow-hidden" style={{ shadowOpacity: 0.045, elevation: 2 }}>
-          <View className="flex-row flex-wrap">
-          {summary.map((item, index) => {
-            const Icon = item.icon;
-            return (
-              <Pressable
-                key={item.label}
-                onPress={() => handleSummaryPress(item)}
-                className={`w-1/2 flex-row items-center gap-3 px-3 py-3 ${index < 2 ? 'border-b border-bg' : ''} ${index % 2 === 0 ? 'border-r border-bg' : ''}`}
-              >
-                <View style={{ backgroundColor: item.bg }} className="h-11 w-11 items-center justify-center rounded-[13px]">
-                  <Icon size={20} color={item.color} strokeWidth={2.3} />
-                </View>
+          <Animated.View entering={FadeInDown.duration(420).springify().damping(18)}>
+            <GradientCard colors={['#F8F5FF', '#E9E1FF']} padding={18} radius={22} className="mb-5">
+              <View className="mb-4 flex-row items-start justify-between gap-4">
                 <View className="flex-1">
-                  <Text className="text-[13px] font-medium text-muted">{item.label}</Text>
-                  <Text className="mt-0.5 text-[18px] font-bold text-text">
-                    {item.value}
-                    {item.suffix ? <Text className="text-[12px] font-semibold text-muted">{item.suffix}</Text> : null}
+                  <Text className="text-[13px] font-bold uppercase text-primary">Progreso general</Text>
+                  <Text className="mt-2 text-[38px] font-bold text-text">{progress}%</Text>
+                  <Text className="mt-1 text-[13px] font-semibold text-muted" numberOfLines={1}>
+                    {pensumName}
                   </Text>
                 </View>
-                {item.id !== 'credits' ? <ChevronRight size={15} color={COLORS.muted} /> : null}
-              </Pressable>
-            );
-          })}
-          </View>
-        </Card>
-        </Animated.ScrollView>
-
-        <Modal
-          visible={isSummaryModalMounted}
-          transparent
-          statusBarTranslucent
-          animationType="none"
-          onRequestClose={() => closeSummaryModal()}
-        >
-          <View className="flex-1 justify-end">
-            <Pressable className="absolute inset-0" onPress={() => closeSummaryModal()}>
-              <Animated.View style={[{ flex: 1, backgroundColor: 'rgba(17,16,24,0.34)' }, modalBackdropStyle]} />
-            </Pressable>
-            <Animated.View
-              {...modalPanResponder.panHandlers}
-              className="mx-4 mb-4 rounded-[28px] bg-white px-5 pb-5 pt-3"
-              style={[
-                modalSheetStyle,
-                {
-                  shadowColor: COLORS.primary,
-                  shadowOffset: { width: 0, height: -12 },
-                  shadowOpacity: 0.12,
-                  shadowRadius: 28,
-                  elevation: 18,
-                },
-              ]}
-            >
-              <View className="mb-5 items-center">
-                <View className="h-1.5 w-16 rounded-full bg-line" />
+                <View className="rounded-[16px] bg-white/80 px-3 py-2">
+                  <Text className="text-[11px] font-bold text-primary">Periodo</Text>
+                  <Text className="mt-1 text-[16px] font-bold text-text">{periodoLabel}</Text>
+                </View>
               </View>
+              <ProgressBar progress={progressRatio} color={COLORS.primary} trackColor="#D9D1FF" height={8} />
+              <View className="mt-5 flex-row">
+                <View className="flex-1">
+                  <Text className="text-[12px] font-semibold text-muted">Creditos</Text>
+                  <Text className="mt-1 text-[18px] font-bold text-text">
+                    {getNumberValue(user.creditos_aprobados)} / {getNumberValue(user.creditos_totales)}
+                  </Text>
+                </View>
+                <View className="mx-4 w-[1px] bg-line" />
+                <View className="flex-1">
+                  <Text className="text-[12px] font-semibold text-muted">Materias</Text>
+                  <Text className="mt-1 text-[18px] font-bold text-text">
+                    {getNumberValue(user.materias_aprobadas)} / {getNumberValue(user.materias_totales)}
+                  </Text>
+                </View>
+              </View>
+            </GradientCard>
+          </Animated.View>
 
-              {activeSummary ? (
-                <>
-                  <View className="mb-5 flex-row items-center gap-4">
-                    <View style={{ backgroundColor: activeSummary.bg }} className="h-[68px] w-[68px] items-center justify-center rounded-[20px]">
-                      <activeSummary.icon size={32} color={activeSummary.color} strokeWidth={2.3} />
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-[22px] font-bold text-text">{activeSummary.modalTitle}</Text>
-                      <Text className="mt-1 text-[15px] font-semibold text-muted">
-                        Total: {activeSummary.value} materias
-                      </Text>
-                    </View>
-                    <Pressable
-                      onPress={() => closeSummaryModal()}
-                      className="h-11 w-11 items-center justify-center rounded-full bg-bg"
-                    >
-                      <X size={21} color={COLORS.text} />
-                    </Pressable>
-                  </View>
+          <View className="mb-3 flex-row items-center justify-between">
+            <Text className="text-[18px] font-bold text-text">Resumen academico</Text>
+            <Pressable onPress={() => router.push('/(tabs)/progreso' as never)}>
+              <Text className="text-[13px] font-bold text-primary">Ver progreso</Text>
+            </Pressable>
+          </View>
 
-                  <ScrollView
-                    showsVerticalScrollIndicator={false}
-                    scrollEventThrottle={16}
-                    onScroll={(e) => {
-                      isModalScrolledToTop.current = e.nativeEvent.contentOffset.y <= 0;
-                    }}
-                    style={{ maxHeight: 360 }}
-                  >
-                    {modalRecords.map((record) => (
-                      <View
-                        key={record.id}
-                        className="mb-2 flex-row items-center gap-3 rounded-[16px] bg-[#FCFBFF] px-3 py-3"
-                        style={{ borderWidth: 1, borderColor: 'rgba(108,77,255,0.055)' }}
-                      >
-                        <View style={{ backgroundColor: activeSummary.bg }} className="h-10 w-10 items-center justify-center rounded-[12px]">
-                          <activeSummary.icon size={19} color={activeSummary.color} strokeWidth={2.4} />
+          <View className="mb-4 flex-row flex-wrap justify-between">
+            <StatTile
+              label="Materias aprobadas"
+              value={getNumberValue(user.materias_aprobadas)}
+              icon={<CheckCircle2 size={21} color={COLORS.success} />}
+              color={COLORS.success}
+              bg={COLORS.successLight}
+            />
+            <StatTile
+              label="Materias pendientes"
+              value={getNumberValue(user.materias_pendientes)}
+              icon={<CalendarDays size={21} color={COLORS.danger} />}
+              color={COLORS.danger}
+              bg={COLORS.dangerLight}
+            />
+            <StatTile
+              label="Materias en curso"
+              value={getNumberValue(user.materias_en_curso)}
+              icon={<Clock3 size={21} color={COLORS.warning} />}
+              color={COLORS.warning}
+              bg={COLORS.warningLight}
+            />
+            <StatTile
+              label="Creditos aprobados"
+              value={getNumberValue(user.creditos_aprobados)}
+              icon={<BookMarked size={21} color={COLORS.primary} />}
+              color={COLORS.primary}
+              bg={COLORS.primaryLight}
+            />
+          </View>
+
+          <View className="mb-3 flex-row items-center justify-between">
+            <Text className="text-[18px] font-bold text-text">Materias del pensum</Text>
+            {/* PensumScreen placeholder route. */}
+            <Pressable onPress={() => router.push('/(tabs)/planner' as never)}>
+              <Text className="text-[13px] font-bold text-primary">Ver pensum</Text>
+            </Pressable>
+          </View>
+
+          {subjectsPreview.length === 0 ? (
+            <Card padding={18} radius={22}>
+              <View className="mb-4 h-12 w-12 items-center justify-center rounded-2xl bg-primaryLight">
+                <BookMarked size={22} color={COLORS.primary} />
+              </View>
+              <Text className="text-[17px] font-bold text-text">Aun no hay materias</Text>
+              <Text className="mt-2 text-[14px] font-medium leading-5 text-muted">
+                Cuando tus materias esten cargadas, veras aqui el avance, estado y creditos de cada una.
+              </Text>
+            </Card>
+          ) : (
+            <View>
+              {subjectsPreview.map((subject, index) => {
+                const status = getSubjectStatus(subject);
+                const name = getTextValue(subject, ['nombre', 'name', 'materia_nombre'], 'Materia sin nombre');
+                const code = getTextValue(subject, ['codigo', 'code', 'materia_codigo'], 'Sin codigo');
+                const credits = getNumberValue(subject.creditos ?? subject.credits);
+                const period = getNumberValue(subject.periodo ?? subject.periodo_numero ?? subject.cuatrimestre ?? subject.semestre);
+
+                return (
+                  <Animated.View key={subject.id} entering={FadeInDown.delay(index * 55).duration(360)}>
+                    <Card padding={14} radius={20} className="mb-3">
+                      <View className="flex-row items-start gap-3">
+                        <View style={{ backgroundColor: status.bg }} className="h-11 w-11 items-center justify-center rounded-[14px]">
+                          <BookMarked size={20} color={status.color} strokeWidth={2.1} />
                         </View>
                         <View className="flex-1">
-                          <Text className="text-[14px] font-bold text-text">{record.name}</Text>
-                          <Text className="mt-0.5 text-[12px] font-semibold text-muted">
-                            {record.code} - {record.credits} creditos
+                          <View className="mb-1.5 flex-row items-start justify-between gap-2">
+                            <Text className="flex-1 text-[15px] font-bold leading-5 text-text">{name}</Text>
+                            <View style={{ backgroundColor: status.bg }} className="rounded-full px-2.5 py-1">
+                              <Text style={{ color: status.color }} className="text-[10px] font-bold">
+                                {status.label}
+                              </Text>
+                            </View>
+                          </View>
+                          <Text className="text-[12px] font-semibold text-muted">
+                            {code} - {credits} creditos - Periodo {period || 'N/D'}
                           </Text>
-                        </View>
-                        <View style={{ backgroundColor: activeSummary.bg }} className="rounded-full px-3 py-1.5">
-                          <Text style={{ color: activeSummary.color }} className="text-[11px] font-bold">
-                            {activeSummary.label}
-                          </Text>
+                          {subject.estado === 'bloqueada' && subject.motivo_bloqueo ? (
+                            <Text className="mt-2 text-[12px] font-semibold leading-4 text-muted">
+                              {subject.motivo_bloqueo}
+                            </Text>
+                          ) : null}
                         </View>
                       </View>
-                    ))}
-                  </ScrollView>
-
-                  <Pressable
-                    onPress={handleModalCta}
-                    className="mt-4 flex-row items-center justify-center gap-3 rounded-[16px] bg-primary py-4"
-                  >
-                    <ArrowUpRight size={20} color={COLORS.white} />
-                    <Text className="text-[15px] font-bold text-white">{activeSummary.modalCta}</Text>
-                  </Pressable>
-                </>
-              ) : null}
-            </Animated.View>
-          </View>
-        </Modal>
+                    </Card>
+                  </Animated.View>
+                );
+              })}
+            </View>
+          )}
+        </ScrollView>
       </SafeAreaView>
     </Animated.View>
   );

@@ -7,6 +7,7 @@ import { COLORS } from '@/constants/mockData';
 import { TYPOGRAPHY } from '@/constants/typography';
 import FloatingActionButton from '../action-center/FloatingActionButton';
 import AcademicActionCenter from '../action-center/AcademicActionCenter';
+import { platformShadow } from '@/utils/platformStyles';
 
 const TABS = [
   { label: 'Inicio', icon: Home, route: '/(tabs)/' },
@@ -30,18 +31,19 @@ export default function FloatingTabBar() {
   return (
     <>
       <View
-        pointerEvents="box-none"
-        style={{ paddingBottom: Math.max(insets.bottom, 10) }}
+        style={{ paddingBottom: Math.max(insets.bottom, 10), pointerEvents: 'box-none' }}
         className="absolute bottom-0 left-0 right-0 px-5 pt-3"
       >
         <View
           className="h-[78px] flex-row items-center justify-between rounded-[30px] border border-white/80 bg-white px-3"
           style={{
-            shadowColor: COLORS.primary,
-            shadowOffset: { width: 0, height: 18 },
-            shadowOpacity: 0.2,
-            shadowRadius: 32,
-            elevation: 18,
+            ...platformShadow({
+              color: COLORS.primary,
+              offset: { width: 0, height: 18 },
+              opacity: 0.2,
+              radius: 32,
+              elevation: 18,
+            }),
           }}
         >
           {TABS.slice(0, 2).map((tab) => {

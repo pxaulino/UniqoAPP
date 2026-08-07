@@ -3,6 +3,7 @@ import { View, StyleProp, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { gradients } from '@/constants/mockData';
+import { platformShadow } from '@/utils/platformStyles';
 
 type GradientCardProps = {
   children: React.ReactNode;
@@ -34,11 +35,13 @@ export default function GradientCard({
       style={[
         {
           borderRadius: radius,
-          shadowColor: colors[0],
-          shadowOffset: { width: 0, height: 18 },
-          shadowOpacity: 0.28,
-          shadowRadius: 30,
-          elevation: 10,
+          ...platformShadow({
+            color: colors[0],
+            offset: { width: 0, height: 18 },
+            opacity: 0.28,
+            radius: 30,
+            elevation: 10,
+          }),
         },
         style,
       ]}
@@ -50,8 +53,8 @@ export default function GradientCard({
         style={{ padding, borderRadius: radius, overflow: 'hidden' }}
       >
         <View
-          pointerEvents="none"
           style={{
+            pointerEvents: 'none',
             position: 'absolute',
             top: -28,
             right: -18,
@@ -62,8 +65,8 @@ export default function GradientCard({
           }}
         />
         <View
-          pointerEvents="none"
           style={{
+            pointerEvents: 'none',
             position: 'absolute',
             bottom: -36,
             left: -24,
