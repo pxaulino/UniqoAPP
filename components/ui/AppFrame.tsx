@@ -76,7 +76,6 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
           flex: 1,
           width: '100%' as const,
           maxWidth: 393,
-          minHeight: 852,
           paddingTop: 47,
           paddingBottom: 34,
           backgroundColor: 'transparent',

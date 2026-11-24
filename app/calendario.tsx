@@ -1,7 +1,8 @@
-import AppFrame from '@/components/ui/AppFrame';
-import { COLORS, plannerSemesters } from '@/constants/mockData';
+import { FormError, useBack } from '@/components/academic/AcademicForm';
+import { ClassMeeting, meetingMinutes } from '@/src/academic/model';
+import { useAcademicStore } from '@/store/useAcademicStore';
+import { COLORS } from '@/constants/mockData';
 import { TYPOGRAPHY } from '@/constants/typography';
-import { useRouter } from 'expo-router';
 import {
   ArrowLeft,
   CalendarDays,
@@ -18,7 +19,7 @@ import {
   X,
 } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
-import { Dimensions, Modal, PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
+import { Dimensions, Modal, PanResponder, Platform, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -28,7 +29,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const DAYS = ['LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
+const DAYS = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'];
 const COLORS_BY_INDEX = ['#8B5CF6', '#10B981', '#3B82F6', '#F59E0B', '#EF476F', '#14B8A6'];
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_CLOSE_DURATION = 220;
@@ -85,44 +86,24 @@ type ScheduleItem = SelectedSubject & {
   color: string;
 };
 
-function getSelectedSubjects() {
-  const subjects = plannerSemesters.flatMap((semester) => semester.subjects);
-  const unique = new Map<string, SelectedSubject>();
-
-  subjects.forEach((subject) => {
-    unique.set(subject.id, {
-      id: subject.id,
-      name: subject.name,
-      code: subject.code,
-      credits: subject.credits,
-    });
-  });
-
-  return Array.from(unique.values());
-}
-
-const selectedSubjects = getSelectedSubjects();
-
-const initialSchedule: ScheduleItem[] = selectedSubjects.slice(0, 3).map((subject, index) => ({
-  ...subject,
-  day: index + 1,
-  startTime: index === 0 ? '08:00 AM' : index === 1 ? '02:00 PM' : '05:00 PM',
-  endTime: index === 0 ? '10:00 AM' : index === 1 ? '04:00 PM' : '07:00 PM',
-  mode: index === 1 ? 'Virtual' : 'Presencial',
-  color: COLORS_BY_INDEX[index],
-}));
-
 export default function CalendarioScreen() {
-  const router = useRouter();
+  const back = useBack('/(tabs)/planner');
+  const { subjects, meetings } = useAcademicStore((state) => state.data);
+  const saveMeeting = useAcademicStore((state) => state.saveMeeting);
+  const removeMeeting = useAcademicStore((state) => state.removeMeeting);
   const insets = useSafeAreaInsets();
   const [activeDay, setActiveDay] = useState(1);
-  const [schedule, setSchedule] = useState<ScheduleItem[]>(initialSchedule);
+  const schedule = useMemo(() => meetings.flatMap((meeting, index) => {
+    const subject = subjects.find(({ id }) => id === meeting.subjectId);
+    return subject ? [{ ...subject, ...meeting, color: COLORS_BY_INDEX[index % COLORS_BY_INDEX.length] }] : [];
+  }), [meetings, subjects]);
+  const selectedSubjects = subjects.filter(({ enrollment }) => enrollment !== 'withdrawn');
+  const feedbackTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [editing, setEditing] = useState<ScheduleItem | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ScheduleItem | null>(null);
   const [timePickerField, setTimePickerField] = useState<'startTime' | 'endTime' | null>(null);
-  const [isEditMounted, setIsEditMounted] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [isAddMounted, setIsAddMounted] = useState(false);
+  const [scheduleError, setScheduleError] = useState('');
   const [feedback, setFeedback] = useState('');
   const editTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const addTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -134,27 +115,26 @@ export default function CalendarioScreen() {
   const addOverlayOpacity = useSharedValue(0);
   const addTranslateY = useSharedValue(SCREEN_HEIGHT);
 
-  const dayEvents = schedule.filter((event) => event.day === activeDay);
+  const dayEvents = schedule.filter((event) => event.day === activeDay).sort((a, b) => meetingMinutes(a.startTime) - meetingMinutes(b.startTime));
   const scheduledIds = useMemo(() => new Set(schedule.map((item) => item.id)), [schedule]);
   const availableSubjects = selectedSubjects.filter((subject) => !scheduledIds.has(subject.id));
+  const isEditOpen = editing !== null;
 
   React.useEffect(() => {
-    if (editing) {
-      setIsEditMounted(true);
+    if (isEditOpen) {
       isEditClosing.current = false;
       if (editTimer.current) clearTimeout(editTimer.current);
-      editOverlayOpacity.value = withTiming(1, { duration: 160, easing: Easing.out(Easing.cubic) });
-      editTranslateY.value = withSpring(0, { damping: 30, stiffness: 260, mass: 0.9 });
+      editOverlayOpacity.set(withTiming(1, { duration: 160, easing: Easing.out(Easing.cubic) }));
+      editTranslateY.set(withSpring(0, { damping: 30, stiffness: 260, mass: 0.9 }));
     }
-  }, [editing, editOverlayOpacity, editTranslateY]);
+  }, [isEditOpen, editOverlayOpacity, editTranslateY]);
 
   React.useEffect(() => {
     if (isAddOpen) {
-      setIsAddMounted(true);
       isAddClosing.current = false;
       if (addTimer.current) clearTimeout(addTimer.current);
-      addOverlayOpacity.value = withTiming(1, { duration: 160, easing: Easing.out(Easing.cubic) });
-      addTranslateY.value = withSpring(0, { damping: 30, stiffness: 260, mass: 0.9 });
+      addOverlayOpacity.set(withTiming(1, { duration: 160, easing: Easing.out(Easing.cubic) }));
+      addTranslateY.set(withSpring(0, { damping: 30, stiffness: 260, mass: 0.9 }));
     }
   }, [addOverlayOpacity, addTranslateY, isAddOpen]);
 
@@ -165,6 +145,8 @@ export default function CalendarioScreen() {
     };
   }, []);
 
+  React.useEffect(() => () => { if (feedbackTimer.current) clearTimeout(feedbackTimer.current); }, []);
+
   const editBackdropStyle = useAnimatedStyle(() => ({ opacity: editOverlayOpacity.value }));
   const editSheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: editTranslateY.value }] }));
   const addBackdropStyle = useAnimatedStyle(() => ({ opacity: addOverlayOpacity.value }));
@@ -172,22 +154,22 @@ export default function CalendarioScreen() {
 
   const showFeedback = (message: string) => {
     setFeedback(message);
-    setTimeout(() => setFeedback(''), 2200);
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    feedbackTimer.current = setTimeout(() => setFeedback(''), 3500);
   };
 
   const closeEditSheet = React.useCallback(
     (afterClose?: () => void) => {
       if (isEditClosing.current) return;
       isEditClosing.current = true;
-      editOverlayOpacity.value = withTiming(0, { duration: SHEET_CLOSE_DURATION, easing: Easing.out(Easing.cubic) });
-      editTranslateY.value = withTiming(SCREEN_HEIGHT, { duration: SHEET_CLOSE_DURATION, easing: Easing.out(Easing.cubic) });
+      editOverlayOpacity.set(withTiming(0, { duration: SHEET_CLOSE_DURATION, easing: Easing.out(Easing.cubic) }));
+      editTranslateY.set(withTiming(SCREEN_HEIGHT, { duration: SHEET_CLOSE_DURATION, easing: Easing.out(Easing.cubic) }));
       editTimer.current = setTimeout(() => {
         editTimer.current = null;
-        setIsEditMounted(false);
         setConfirmDelete(null);
         setTimePickerField(null);
         setEditing(null);
-        editTranslateY.value = SCREEN_HEIGHT;
+        editTranslateY.set(SCREEN_HEIGHT);
         afterClose?.();
       }, SHEET_CLOSE_DURATION);
     },
@@ -198,13 +180,12 @@ export default function CalendarioScreen() {
     (afterClose?: () => void) => {
       if (isAddClosing.current) return;
       isAddClosing.current = true;
-      addOverlayOpacity.value = withTiming(0, { duration: SHEET_CLOSE_DURATION, easing: Easing.out(Easing.cubic) });
-      addTranslateY.value = withTiming(SCREEN_HEIGHT, { duration: SHEET_CLOSE_DURATION, easing: Easing.out(Easing.cubic) });
+      addOverlayOpacity.set(withTiming(0, { duration: SHEET_CLOSE_DURATION, easing: Easing.out(Easing.cubic) }));
+      addTranslateY.set(withTiming(SCREEN_HEIGHT, { duration: SHEET_CLOSE_DURATION, easing: Easing.out(Easing.cubic) }));
       addTimer.current = setTimeout(() => {
         addTimer.current = null;
-        setIsAddMounted(false);
         setIsAddOpen(false);
-        addTranslateY.value = SCREEN_HEIGHT;
+        addTranslateY.set(SCREEN_HEIGHT);
         afterClose?.();
       }, SHEET_CLOSE_DURATION);
     },
@@ -213,6 +194,7 @@ export default function CalendarioScreen() {
 
   const editPanResponder = React.useMemo(
     () =>
+      // eslint-disable-next-line react-hooks/refs -- PanResponder registers handlers that read refs only during gestures.
       PanResponder.create({
         onMoveShouldSetPanResponderCapture: (_, gestureState) => {
           const isMostlyVertical = Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.35;
@@ -220,7 +202,7 @@ export default function CalendarioScreen() {
         },
         onStartShouldSetPanResponder: (e) => e.nativeEvent.locationY < 132,
         onPanResponderMove: (_, gestureState) => {
-          if (gestureState.dy > 0) editTranslateY.value = Math.min(gestureState.dy, SCREEN_HEIGHT * 0.55);
+          if (gestureState.dy > 0) editTranslateY.set(Math.min(gestureState.dy, SCREEN_HEIGHT * 0.55));
         },
         onPanResponderRelease: (_, gestureState) => {
           const shouldClose = gestureState.dy > 135 || (gestureState.dy > 64 && gestureState.vy > 1.05);
@@ -228,10 +210,10 @@ export default function CalendarioScreen() {
             closeEditSheet();
             return;
           }
-          editTranslateY.value = withSpring(0, { damping: 28, stiffness: 260 });
+          editTranslateY.set(withSpring(0, { damping: 28, stiffness: 260 }));
         },
         onPanResponderTerminate: () => {
-          editTranslateY.value = withSpring(0, { damping: 28, stiffness: 260 });
+          editTranslateY.set(withSpring(0, { damping: 28, stiffness: 260 }));
         },
       }),
     [closeEditSheet, editTranslateY, timePickerField]
@@ -239,6 +221,7 @@ export default function CalendarioScreen() {
 
   const addPanResponder = React.useMemo(
     () =>
+      // eslint-disable-next-line react-hooks/refs -- PanResponder registers handlers that read refs only during gestures.
       PanResponder.create({
         onMoveShouldSetPanResponderCapture: (_, gestureState) => {
           const isMostlyVertical = Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.35;
@@ -246,7 +229,7 @@ export default function CalendarioScreen() {
         },
         onStartShouldSetPanResponder: (e) => e.nativeEvent.locationY < 132,
         onPanResponderMove: (_, gestureState) => {
-          if (gestureState.dy > 0) addTranslateY.value = Math.min(gestureState.dy, SCREEN_HEIGHT * 0.55);
+          if (gestureState.dy > 0) addTranslateY.set(Math.min(gestureState.dy, SCREEN_HEIGHT * 0.55));
         },
         onPanResponderRelease: (_, gestureState) => {
           const shouldClose = gestureState.dy > 135 || (gestureState.dy > 64 && gestureState.vy > 1.05);
@@ -254,10 +237,10 @@ export default function CalendarioScreen() {
             closeAddSheet();
             return;
           }
-          addTranslateY.value = withSpring(0, { damping: 28, stiffness: 260 });
+          addTranslateY.set(withSpring(0, { damping: 28, stiffness: 260 }));
         },
         onPanResponderTerminate: () => {
-          addTranslateY.value = withSpring(0, { damping: 28, stiffness: 260 });
+          addTranslateY.set(withSpring(0, { damping: 28, stiffness: 260 }));
         },
       }),
     [addTranslateY, closeAddSheet]
@@ -265,12 +248,19 @@ export default function CalendarioScreen() {
 
   const updateEditing = (patch: Partial<ScheduleItem>) => {
     if (!editing) return;
+    setScheduleError('');
     setEditing({ ...editing, ...patch });
   };
 
-  const saveEditing = () => {
+  const applyMeeting = async ({ id, day, startTime, endTime, mode }: Omit<ClassMeeting, 'subjectId'> & { id: string }) => {
+    const result = await saveMeeting({ subjectId: id, day, startTime, endTime, mode });
+    return result.ok ? '' : result.error;
+  };
+
+  const saveEditing = async () => {
     if (!editing) return;
-    setSchedule((items) => items.map((item) => (item.id === editing.id ? editing : item)));
+    const error = await applyMeeting(editing);
+    if (error) { setScheduleError(error); return; }
     closeEditSheet(() => showFeedback('Materia actualizada en el horario'));
   };
 
@@ -279,10 +269,10 @@ export default function CalendarioScreen() {
     setConfirmDelete(editing);
   };
 
-  const confirmRemove = () => {
+  const confirmRemove = async () => {
     if (!confirmDelete) return;
-    const id = confirmDelete.id;
-    setSchedule((items) => items.filter((item) => item.id !== id));
+    const result = await removeMeeting(confirmDelete.id);
+    if (!result.ok) { showFeedback(result.error); return; }
     closeEditSheet(() => showFeedback('Materia eliminada del horario'));
   };
 
@@ -301,57 +291,40 @@ export default function CalendarioScreen() {
   };
 
   const addSubject = (subject: SelectedSubject) => {
-    if (scheduledIds.has(subject.id)) {
-      showFeedback('Esta materia ya esta en tu horario');
-      return;
-    }
-
-    setSchedule((items) => [
-      ...items,
-      {
-        ...subject,
-        day: activeDay,
-        startTime: '08:00 AM',
-        endTime: '10:00 AM',
-        mode: 'Presencial',
-        color: COLORS_BY_INDEX[items.length % COLORS_BY_INDEX.length],
-      },
-    ]);
-    closeAddSheet(() => showFeedback('Materia agregada al horario'));
+    if (scheduledIds.has(subject.id)) return;
+    setScheduleError('');
+    closeAddSheet(() => setEditing({
+      ...subject, day: activeDay, startTime: '08:00 AM', endTime: '10:00 AM',
+      mode: 'Presencial', color: COLORS_BY_INDEX[schedule.length % COLORS_BY_INDEX.length],
+    }));
   };
 
-  const importSchedule = () => {
-    const missing = selectedSubjects.filter((subject) => !scheduledIds.has(subject.id)).slice(0, 4);
-
-    if (missing.length === 0) {
-      showFeedback('Todas tus materias seleccionadas ya estan importadas');
-      return;
+  const exportSchedule = async () => {
+    if (!schedule.length) { showFeedback('Agrega una materia al horario antes de exportar.'); return; }
+    const message = schedule.map((item) =>
+      DAYS[item.day - 1] + ' · ' + item.startTime + ' a ' + item.endTime + ' · ' + item.name + ' (' + item.mode + ')',
+    ).join('\n');
+    try {
+      if (Platform.OS === 'web') {
+        if (navigator.share) await navigator.share({ text: message });
+        else {
+          await navigator.clipboard.writeText(message);
+          showFeedback('Horario copiado');
+        }
+      } else {
+        await Share.share({ message });
+      }
+    } catch {
+      showFeedback('No se pudo compartir el horario.');
     }
-
-    setSchedule((items) => [
-      ...items,
-      ...missing.map((subject, index) => ({
-        ...subject,
-        day: ((items.length + index) % DAYS.length) + 1,
-        startTime: '08:00 AM',
-        endTime: '10:00 AM',
-        mode: 'Presencial' as ScheduleMode,
-        color: COLORS_BY_INDEX[(items.length + index) % COLORS_BY_INDEX.length],
-      })),
-    ]);
-    showFeedback(`${missing.length} materias importadas desde Mis estudios`);
-  };
-
-  const exportSchedule = () => {
-    showFeedback('Horario listo para exportar');
   };
 
   return (
-    <AppFrame>
+    <View className="flex-1 bg-bg">
       <View style={{ paddingTop: insets.top + 10 }} className="rounded-b-[34px] bg-white px-6 pb-5">
         <View className="mb-5 flex-row items-center justify-between">
           <Pressable
-            onPress={() => router.back()}
+            onPress={back} accessibilityRole="button" accessibilityLabel="Volver"
             className="h-10 w-10 items-center justify-center rounded-full bg-gray-50"
           >
             <ArrowLeft size={20} color={COLORS.text} />
@@ -369,13 +342,13 @@ export default function CalendarioScreen() {
         </View>
 
         <View className="mb-5 flex-row gap-3">
-          <Pressable onPress={importSchedule} className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-bg py-3">
+          <Pressable onPress={() => setIsAddOpen(true)} className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-bg py-3">
             <UploadCloud size={17} color={COLORS.primary} />
-            <Text className="text-[13px] font-bold text-primary">Importar</Text>
+            <Text className="text-[13px] font-bold text-primary">Agregar materia</Text>
           </Pressable>
           <Pressable onPress={exportSchedule} className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-bg py-3">
             <DownloadCloud size={17} color={COLORS.primary} />
-            <Text className="text-[13px] font-bold text-primary">Exportar</Text>
+            <Text className="text-[13px] font-bold text-primary">Compartir</Text>
           </Pressable>
         </View>
 
@@ -394,7 +367,7 @@ export default function CalendarioScreen() {
                 <Text style={[TYPOGRAPHY.labelSemibold, { color: isActive ? COLORS.white : COLORS.muted, marginBottom: 4 }]}>
                   {day}
                 </Text>
-                <Text style={[TYPOGRAPHY.cardTitle, { color: isActive ? COLORS.white : COLORS.text }]}>{idx + 10}</Text>
+                <Text style={[TYPOGRAPHY.cardTitle, { color: isActive ? COLORS.white : COLORS.text }]}>{count}</Text>
                 {count > 0 ? (
                   <View className={`absolute bottom-1.5 h-1.5 w-1.5 rounded-full ${isActive ? 'bg-white' : 'bg-primary'}`} />
                 ) : null}
@@ -449,7 +422,7 @@ export default function CalendarioScreen() {
                       </Text>
                     </View>
                   </View>
-                  <Pressable onPress={() => setEditing(event)} className="h-9 w-9 items-center justify-center rounded-full bg-bg">
+                  <Pressable onPress={() => { setScheduleError(''); setEditing(event); }} className="h-9 w-9 items-center justify-center rounded-full bg-bg">
                     <MoreVertical size={18} color={COLORS.muted} />
                   </Pressable>
                 </View>
@@ -464,7 +437,7 @@ export default function CalendarioScreen() {
         )}
       </ScrollView>
 
-      <Modal transparent visible={isEditMounted} animationType="none" statusBarTranslucent onRequestClose={closeEditModal}>
+      <Modal transparent visible={isEditOpen} animationType="none" statusBarTranslucent onRequestClose={closeEditModal}>
         <View className="flex-1 justify-end">
           <Pressable className="absolute inset-0" onPress={closeEditModal}>
             <Animated.View style={[{ flex: 1, backgroundColor: 'rgba(17,16,24,0.34)' }, editBackdropStyle]} />
@@ -563,7 +536,7 @@ export default function CalendarioScreen() {
               <>
                 <View className="mb-5 flex-row items-start justify-between">
                   <View className="flex-1 pr-4">
-                    <Text className="text-[22px] font-bold text-text">Editar materia</Text>
+                    <Text className="text-[22px] font-bold text-text">Horario de materia</Text>
                     <Text className="mt-1 text-[14px] font-semibold text-muted">{editing.name}</Text>
                   </View>
                   <Pressable onPress={() => closeEditSheet()} className="h-10 w-10 items-center justify-center rounded-full bg-bg">
@@ -612,8 +585,8 @@ export default function CalendarioScreen() {
                   })}
                 </View>
 
-                <Text className="mb-2 text-[12px] font-bold text-muted">Dia</Text>
-                <View className="mb-6 flex-row justify-between">
+                <Text className="mb-2 text-[12px] font-bold text-muted">Día</Text>
+                <View className="mb-6 flex-row gap-1">
                   {DAYS.map((day, idx) => {
                     const dayNumber = idx + 1;
                     const selected = editing.day === dayNumber;
@@ -621,7 +594,7 @@ export default function CalendarioScreen() {
                       <Pressable
                         key={day}
                         onPress={() => updateEditing({ day: dayNumber })}
-                        className={`h-11 w-11 items-center justify-center rounded-2xl ${selected ? 'bg-primary' : 'bg-bg'}`}
+                        className={`h-11 flex-1 items-center justify-center rounded-2xl ${selected ? 'bg-primary' : 'bg-bg'}`}
                       >
                         <Text className={`text-[12px] font-bold ${selected ? 'text-white' : 'text-muted'}`}>{day}</Text>
                       </Pressable>
@@ -629,11 +602,12 @@ export default function CalendarioScreen() {
                   })}
                 </View>
 
-                <View className="flex-row gap-3">
-                  <Pressable onPress={requestDelete} className="h-14 w-14 items-center justify-center rounded-2xl bg-dangerLight">
+                <FormError error={scheduleError} />
+                <View className="mt-3 flex-row gap-3">
+                  <Pressable accessibilityLabel="Eliminar del horario" accessibilityRole="button" disabled={!scheduledIds.has(editing.id)} onPress={requestDelete} className="h-14 w-14 items-center justify-center rounded-2xl bg-dangerLight">
                     <Trash2 size={20} color={COLORS.danger} />
                   </Pressable>
-                  <Pressable onPress={saveEditing} className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-primary">
+                  <Pressable accessibilityRole="button" onPress={saveEditing} className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-primary">
                     <Check size={20} color={COLORS.white} />
                     <Text className="text-[15px] font-bold text-white">Guardar cambios</Text>
                   </Pressable>
@@ -644,7 +618,7 @@ export default function CalendarioScreen() {
         </View>
       </Modal>
 
-      <Modal transparent visible={isAddMounted} animationType="none" statusBarTranslucent onRequestClose={() => closeAddSheet()}>
+      <Modal transparent visible={isAddOpen} animationType="none" statusBarTranslucent onRequestClose={() => closeAddSheet()}>
         <View className="flex-1 justify-end">
           <Pressable className="absolute inset-0" onPress={() => closeAddSheet()}>
             <Animated.View style={[{ flex: 1, backgroundColor: 'rgba(17,16,24,0.34)' }, addBackdropStyle]} />
@@ -711,6 +685,6 @@ export default function CalendarioScreen() {
           </Animated.View>
         </View>
       </Modal>
-    </AppFrame>
+    </View>
   );
 }

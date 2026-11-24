@@ -1,39 +1,38 @@
+import { useBack } from '@/components/academic/AcademicForm';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Crosshair, SlidersHorizontal } from 'lucide-react-native';
+import { ArrowLeft, Plus, Settings } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/mockData';
 import CurriculumGraph from '@/components/CurriculumGraph';
-import { CurriculumMapSkeleton } from '@/components/skeleton/ScreenSkeletons';
-import { useFakeLoading } from '@/hooks/useFakeLoading';
 
 const legend = [
   { label: 'Aprobada', color: COLORS.success },
   { label: 'Disponible', color: COLORS.secondary },
   { label: 'En curso', color: COLORS.warning },
+  { label: 'Reprobada', color: COLORS.danger },
+  { label: 'Retirada', color: COLORS.muted },
   { label: 'Bloqueada', color: '#78728E' },
 ];
 
 export default function MapaScreen() {
   const router = useRouter();
-  const loading = useFakeLoading(900);
-
-  if (loading) return <CurriculumMapSkeleton />;
+  const back = useBack('/(tabs)/planner');
 
   return (
     <Animated.View entering={FadeIn.duration(260)} className="flex-1">
       <SafeAreaView className="flex-1 bg-bg">
       <View className="px-5 pt-2">
         <View className="mb-2 flex-row items-center justify-between">
-          <Pressable onPress={() => router.back()} className="h-10 w-10 items-center justify-center rounded-2xl">
+          <Pressable onPress={back} accessibilityRole="button" accessibilityLabel="Volver" className="h-10 w-10 items-center justify-center rounded-2xl">
             <ArrowLeft size={22} color={COLORS.text} />
           </Pressable>
           <Text className="text-[16px] font-bold text-text">Mapa del Pensum</Text>
-          <View className="h-10 w-10 items-center justify-center rounded-2xl bg-white">
-            <SlidersHorizontal size={18} color={COLORS.text} />
-          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Configurar pensum" onPress={() => router.push('/agregar-universidad')} className="h-10 w-10 items-center justify-center rounded-2xl bg-white">
+            <Settings size={18} color={COLORS.text} />
+          </Pressable>
         </View>
         <View className="mb-1 flex-row flex-wrap items-center justify-center gap-x-4 gap-y-1">
           {legend.map((item) => (
@@ -49,7 +48,7 @@ export default function MapaScreen() {
         <CurriculumGraph />
       </View>
 
-      <Pressable
+      <Pressable accessibilityRole="button" accessibilityLabel="Agregar materia" onPress={() => router.push('/editar-materia')}
         className="absolute bottom-28 right-5 h-14 w-14 items-center justify-center rounded-full bg-primary"
         style={{
           shadowColor: COLORS.primary,
@@ -59,7 +58,7 @@ export default function MapaScreen() {
           elevation: 12,
         }}
       >
-        <Crosshair size={25} color={COLORS.white} />
+        <Plus size={25} color={COLORS.white} />
       </Pressable>
 
       </SafeAreaView>

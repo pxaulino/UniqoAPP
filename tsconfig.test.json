@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "skipLibCheck": true,
+    "target": "ES2022",
+    "module": "Node16",
+    "rootDir": "src/academic",
+    "outDir": ".expo/academic-tests",
+    "types": []
+  },
+  "include": ["src/academic/*.ts"]
+}

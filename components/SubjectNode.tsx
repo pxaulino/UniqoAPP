@@ -9,14 +9,16 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { COLORS, type SubjectStatus } from '@/constants/mockData';
+import { COLORS } from '@/constants/mockData';
+
+export type GraphSubjectStatus = 'approved' | 'available' | 'in_progress' | 'locked' | 'failed' | 'withdrawn';
 
 type SubjectNodeProps = {
   id: string;
   code: string;
   name: string;
   credits: number;
-  status: SubjectStatus;
+  status: GraphSubjectStatus;
   width?: number;
   height?: number;
   onPress?: () => void;
@@ -24,14 +26,16 @@ type SubjectNodeProps = {
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const STATUS_CONFIG: Record<SubjectStatus, { bg: string; border: string; text: string; iconBg: string; icon: 'check' | 'lock' | 'dot' }> = {
+const STATUS_CONFIG: Record<GraphSubjectStatus, { bg: string; border: string; text: string; iconBg: string; icon: 'check' | 'lock' | 'dot' }> = {
   approved: { bg: '#ECFBF3', border: COLORS.success, text: '#149761', iconBg: COLORS.success, icon: 'check' },
   available: { bg: '#F2F7FF', border: COLORS.secondary, text: '#2563EB', iconBg: COLORS.secondary, icon: 'check' },
   in_progress: { bg: '#FFF7E7', border: COLORS.warning, text: '#C27A05', iconBg: COLORS.warning, icon: 'dot' },
+  failed: { bg: '#FFF0F2', border: COLORS.danger, text: '#A62544', iconBg: COLORS.danger, icon: 'dot' },
+  withdrawn: { bg: '#FFFFFF', border: '#D7D3E7', text: '#58546A', iconBg: COLORS.muted, icon: 'dot' },
   locked: { bg: '#FFFFFF', border: '#D7D3E7', text: '#58546A', iconBg: '#F2F0FA', icon: 'lock' },
 };
 
-function StatusIcon({ status }: { status: SubjectStatus }) {
+function StatusIcon({ status }: { status: GraphSubjectStatus }) {
   const cfg = STATUS_CONFIG[status];
   if (cfg.icon === 'lock') return <Lock size={11} color={COLORS.text} strokeWidth={2.5} />;
   if (cfg.icon === 'dot') return <View className="h-2 w-2 rounded-full bg-white" />;
@@ -67,6 +71,8 @@ export default function SubjectNode({
 
   return (
     <AnimatedPressable
+      accessibilityRole="button"
+      accessibilityLabel={code + ' ' + name}
       onPress={onPress}
       onPressIn={() => {
         press.value = withSpring(0.96, { damping: 14, stiffness: 260 });

@@ -36,10 +36,10 @@ export default function IconButton({
     <AnimatedPressable
       onPress={onPress}
       onPressIn={() => {
-        scale.value = withSpring(0.92, { damping: 14, stiffness: 260 });
+        scale.set(withSpring(0.92, { damping: 14, stiffness: 260 }));
       }}
       onPressOut={() => {
-        scale.value = withSpring(1, { damping: 14, stiffness: 260 });
+        scale.set(withSpring(1, { damping: 14, stiffness: 260 }));
       }}
       className={className}
       style={[

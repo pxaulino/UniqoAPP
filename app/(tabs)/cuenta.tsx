@@ -1,4 +1,5 @@
-import { Image } from 'expo-image';
+import { formatAverage } from '@/src/academic/calculations';
+import { useAcademicStore, useAcademicSummary } from '@/store/useAcademicStore';
 import { useRouter } from 'expo-router';
 import {
   BellRing,
@@ -17,22 +18,23 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Card from '@/components/ui/Card';
 import ProgressBar from '@/components/ui/ProgressBar';
-import { COLORS, progressData } from '@/constants/mockData';
-
-const profileRows = [
-  { label: 'Universidad activa', value: 'INTEC', icon: Building2, color: COLORS.primary, bg: COLORS.primaryLight },
-  { label: 'Carrera', value: 'Ingenieria de Software', icon: GraduationCap, color: COLORS.secondary, bg: COLORS.blueLight },
-  { label: 'Correo academico', value: 'daniel@estudiante.edu', icon: Mail, color: COLORS.success, bg: COLORS.successLight },
-];
+import { COLORS } from '@/constants/mockData';
 
 const accountActions = [
-  { label: 'Preferencias academicas', icon: Target, color: COLORS.primary, route: '/perfil' },
-  { label: 'Notificaciones IA', icon: BellRing, color: COLORS.danger, route: '/notificaciones' },
+  { label: 'Preferencias académicas', icon: Target, color: COLORS.primary, route: '/agregar-universidad' },
+  { label: 'Notificaciones', icon: BellRing, color: COLORS.danger, route: '/notificaciones' },
   { label: 'Privacidad y seguridad', icon: ShieldCheck, color: COLORS.success, route: '/perfil' },
-];
+] as const;
 
 export default function CuentaScreen() {
   const router = useRouter();
+  const { profile, plan } = useAcademicStore((state) => state.data);
+  const summary = useAcademicSummary();
+  const profileRows = [
+    { label: 'Universidad activa', value: plan?.university ?? '—', icon: Building2, color: COLORS.primary, bg: COLORS.primaryLight },
+    { label: 'Carrera', value: plan?.career ?? '—', icon: GraduationCap, color: COLORS.secondary, bg: COLORS.blueLight },
+    { label: 'Correo académico', value: profile?.email || '—', icon: Mail, color: COLORS.success, bg: COLORS.successLight },
+  ];
 
   return (
     <Animated.View entering={FadeIn.duration(260)} className="flex-1">
@@ -44,7 +46,7 @@ export default function CuentaScreen() {
               <Text className="mt-1 text-[13px] font-semibold text-muted">Tu identidad academica y ajustes</Text>
             </View>
             <Pressable
-              onPress={() => router.push('/perfil' as never)}
+              onPress={() => router.push('/perfil')} accessibilityRole="button" accessibilityLabel="Editar perfil"
               className="h-10 w-10 items-center justify-center rounded-2xl bg-white"
               style={{
                 shadowColor: COLORS.primary,
@@ -71,27 +73,19 @@ export default function CuentaScreen() {
             <View className="absolute right-[-28px] top-[-34px] h-28 w-28 rounded-full bg-white/10" />
             <View className="absolute bottom-[-44px] left-[-38px] h-32 w-32 rounded-full bg-primary/25" />
             <View className="flex-row items-center gap-4">
-              <Image
-                source={require('@/assets/images/daniel.webp')}
-                contentFit="cover"
-                style={{
-                  width: 72,
-                  height: 72,
-                  borderRadius: 22,
-                  borderWidth: 3,
-                  borderColor: COLORS.white,
-                }}
-              />
+              <View className="h-[72px] w-[72px] items-center justify-center rounded-[22px] bg-white">
+                <Text className="text-[25px] font-bold text-primary">{profile?.name[0]?.toUpperCase() ?? 'U'}</Text>
+              </View>
               <View className="flex-1">
                 <View className="mb-2 flex-row items-center gap-2">
                   <View className="rounded-full bg-white/14 px-2.5 py-1">
-                    <Text className="text-[11px] font-bold text-white">Activo</Text>
+                    <Text className="text-[11px] font-bold text-white">Demo local</Text>
                   </View>
                   <Sparkles size={15} color="#FFD64A" />
                 </View>
-                <Text className="text-[22px] font-bold text-white">Daniel</Text>
+                <Text className="text-[22px] font-bold text-white">{profile?.name ?? 'Estudiante'}</Text>
                 <Text style={{ color: 'rgba(255,255,255,0.78)' }} className="mt-1 text-[13px] font-semibold">
-                  Desarrollo de Software - ITLA
+                  {plan ? plan.career + ' · ' + plan.university : 'Completa tu perfil académico'}
                 </Text>
               </View>
             </View>
@@ -103,23 +97,23 @@ export default function CuentaScreen() {
                 <Text className="text-[15px] font-bold text-text">Resumen academico</Text>
                 <Text className="mt-1 text-[12px] font-semibold text-muted">Progreso principal de tu perfil</Text>
               </View>
-              <Text className="text-[18px] font-bold text-primary">{progressData.percent}%</Text>
+              <Text className="text-[18px] font-bold text-primary">{summary.percent}%</Text>
             </View>
-            <ProgressBar progress={progressData.percent / 100} color={COLORS.primary} trackColor="#E4DEFF" height={8} />
+            <ProgressBar progress={summary.percent / 100} color={COLORS.primary} trackColor="#E4DEFF" height={8} />
             <View className="mt-4 flex-row justify-between">
               <View>
                 <Text className="text-[11px] font-semibold text-muted">Creditos</Text>
                 <Text className="mt-1 text-[14px] font-bold text-text">
-                  {progressData.creditsApproved}/{progressData.totalCredits}
+                  {summary.earnedCredits}/{summary.totalCredits}
                 </Text>
               </View>
               <View className="items-center">
                 <Text className="text-[11px] font-semibold text-muted">Promedio</Text>
-                <Text className="mt-1 text-[14px] font-bold text-text">{progressData.gpa}</Text>
+                <Text className="mt-1 text-[14px] font-bold text-text">{formatAverage(summary.average)}</Text>
               </View>
               <View className="items-end">
-                <Text className="text-[11px] font-semibold text-muted">Graduacion</Text>
-                <Text className="mt-1 text-[14px] font-bold text-text">{progressData.graduationDate}</Text>
+                <Text className="text-[11px] font-semibold text-muted">Restantes</Text>
+                <Text className="mt-1 text-[14px] font-bold text-text">{summary.remainingCredits}</Text>
               </View>
             </View>
           </Card>
@@ -152,7 +146,7 @@ export default function CuentaScreen() {
               return (
                 <Pressable
                   key={action.label}
-                  onPress={() => router.push(action.route as never)}
+                  onPress={() => router.push(action.route)}
                   className={`flex-row items-center gap-3 px-4 py-4 ${index < accountActions.length - 1 ? 'border-b border-bg' : ''}`}
                 >
                   <View className="h-10 w-10 items-center justify-center rounded-xl bg-bg">

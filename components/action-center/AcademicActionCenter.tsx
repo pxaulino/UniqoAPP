@@ -31,7 +31,6 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CLOSE_DURATION = 220;
 
 interface AcademicActionCenterProps {
-  isVisible: boolean;
   onClose: () => void;
 }
 
@@ -45,14 +44,14 @@ const PRIMARY_ACTIONS = [
   },
   {
     id: 'assistant',
-    title: 'Asistente IA',
-    subtitle: 'Consulta dudas rapidas',
+    title: 'Asistente académico',
+    subtitle: 'Revisa tus próximos pasos',
     icon: Bot,
     colors: ['#EC4899', '#D946EF'] as [string, string],
   },
   {
     id: 'upload',
-    title: 'Subir Pensum',
+    title: 'Configurar pensum',
     subtitle: 'Agrega tu programa',
     icon: UploadCloud,
     colors: ['#3B82F6', '#2563EB'] as [string, string],
@@ -60,7 +59,7 @@ const PRIMARY_ACTIONS = [
   {
     id: 'roadmap',
     title: 'Ruta de Estudio',
-    subtitle: 'Tu camino a graduacion',
+    subtitle: 'Organiza tus períodos',
     icon: BookPlus,
     colors: ['#10B981', '#059669'] as [string, string],
   },
@@ -69,16 +68,15 @@ const PRIMARY_ACTIONS = [
 const SECONDARY_ACTIONS = [
   { id: 'calendar', title: 'Horario', icon: Calendar, colors: ['#6366F1', '#4F46E5'] as [string, string] },
   { id: 'recommendations', title: 'Sugerencias', icon: Sparkles, colors: ['#F59E0B', '#D97706'] as [string, string] },
-  { id: 'stats', title: 'Estadisticas', icon: TrendingUp, colors: ['#F43F5E', '#E11D48'] as [string, string] },
-  { id: 'notifications', title: 'Notificaciones', icon: Bell, colors: ['#14B8A6', '#0D9488'] as [string, string] },
+  { id: 'stats', title: 'Estadísticas', icon: TrendingUp, colors: ['#F43F5E', '#E11D48'] as [string, string] },
+  { id: 'notifications', title: 'Recordatorios', icon: Bell, colors: ['#14B8A6', '#0D9488'] as [string, string] },
   { id: 'uni', title: 'Universidad', icon: Building2, colors: ['#8B5CF6', '#6C4DFF'] as [string, string] },
   { id: 'settings', title: 'Ajustes', icon: Settings, colors: ['#64748B', '#475569'] as [string, string] },
 ];
 
-export default function AcademicActionCenter({ isVisible, onClose }: AcademicActionCenterProps) {
+export default function AcademicActionCenter({ onClose }: AcademicActionCenterProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [isMounted, setIsMounted] = React.useState(isVisible);
   const isScrolledToTop = React.useRef(true);
   const closeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const isClosing = React.useRef(false);
@@ -86,61 +84,42 @@ export default function AcademicActionCenter({ isVisible, onClose }: AcademicAct
   const translateY = useSharedValue(SCREEN_HEIGHT);
 
   React.useEffect(() => {
-    if (isVisible) {
-      setIsMounted(true);
-      isClosing.current = false;
-      if (closeTimer.current) {
-        clearTimeout(closeTimer.current);
-        closeTimer.current = null;
-      }
-      overlayOpacity.value = withTiming(1, {
-        duration: 160,
-        easing: Easing.out(Easing.cubic),
-      });
-      translateY.value = withSpring(0, {
-        damping: 30,
-        stiffness: 260,
-        mass: 0.9,
-      });
-    }
-  }, [isVisible, overlayOpacity, translateY]);
-
-  React.useEffect(() => {
+    overlayOpacity.set(withTiming(1, {
+      duration: 160,
+      easing: Easing.out(Easing.cubic),
+    }));
+    translateY.set(withSpring(0, {
+      damping: 30,
+      stiffness: 260,
+      mass: 0.9,
+    }));
     return () => {
       if (closeTimer.current) {
         clearTimeout(closeTimer.current);
       }
     };
-  }, []);
+  }, [overlayOpacity, translateY]);
 
   const closeWithAnimation = React.useCallback(
     (afterClose?: () => void) => {
       if (isClosing.current) return;
       isClosing.current = true;
-      overlayOpacity.value = withTiming(0, {
+      overlayOpacity.set(withTiming(0, {
         duration: CLOSE_DURATION,
         easing: Easing.out(Easing.cubic),
-      });
-      translateY.value = withTiming(SCREEN_HEIGHT, {
+      }));
+      translateY.set(withTiming(SCREEN_HEIGHT, {
         duration: CLOSE_DURATION,
         easing: Easing.out(Easing.cubic),
-      });
+      }));
       closeTimer.current = setTimeout(() => {
         closeTimer.current = null;
-        setIsMounted(false);
-        translateY.value = SCREEN_HEIGHT;
         afterClose?.();
         onClose();
       }, CLOSE_DURATION);
     },
     [onClose, overlayOpacity, translateY]
   );
-
-  React.useEffect(() => {
-    if (!isVisible && isMounted) {
-      closeWithAnimation();
-    }
-  }, [closeWithAnimation, isMounted, isVisible]);
 
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: overlayOpacity.value,
@@ -163,6 +142,7 @@ export default function AcademicActionCenter({ isVisible, onClose }: AcademicAct
 
   const panResponder = React.useMemo(
     () =>
+      // eslint-disable-next-line react-hooks/refs -- PanResponder registers handlers that read refs only during gestures.
       PanResponder.create({
         onMoveShouldSetPanResponderCapture: (_, gestureState) => {
           const isMostlyVertical = Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.4;
@@ -172,7 +152,7 @@ export default function AcademicActionCenter({ isVisible, onClose }: AcademicAct
         onStartShouldSetPanResponder: (e) => e.nativeEvent.locationY < 132,
         onPanResponderMove: (_, gestureState) => {
           if (gestureState.dy > 0) {
-            translateY.value = Math.min(gestureState.dy, SCREEN_HEIGHT * 0.55);
+            translateY.set(Math.min(gestureState.dy, SCREEN_HEIGHT * 0.55));
           }
         },
         onPanResponderRelease: (_, gestureState) => {
@@ -181,10 +161,10 @@ export default function AcademicActionCenter({ isVisible, onClose }: AcademicAct
             closeWithGesture();
             return;
           }
-          translateY.value = withSpring(0, { damping: 28, stiffness: 260 });
+          translateY.set(withSpring(0, { damping: 28, stiffness: 260 }));
         },
         onPanResponderTerminate: () => {
-          translateY.value = withSpring(0, { damping: 28, stiffness: 260 });
+          translateY.set(withSpring(0, { damping: 28, stiffness: 260 }));
         },
       }),
     [closeWithGesture, translateY]
@@ -200,13 +180,14 @@ export default function AcademicActionCenter({ isVisible, onClose }: AcademicAct
       else if (id === 'recommendations') router.push('/recomendaciones');
       else if (id === 'stats') router.push('/estadisticas-avanzadas');
       else if (id === 'notifications') router.push('/notificaciones');
+      else if (id === 'uni') router.navigate('/(tabs)/universidades');
       else if (id === 'settings') router.push('/perfil');
     });
   };
 
   return (
     <Modal
-      visible={isMounted}
+      visible
       transparent
       statusBarTranslucent
       animationType="none"

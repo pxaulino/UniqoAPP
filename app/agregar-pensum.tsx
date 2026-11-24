@@ -1,1 +1,1 @@
-export { default } from './subir-pensum';
+export { default } from '@/components/academic/PlanForm';

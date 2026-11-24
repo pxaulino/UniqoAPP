@@ -40,15 +40,15 @@ export default function ActionCard({ title, subtitle, icon: Icon, colors, onPres
 
   const handlePressIn = () => {
     Haptics.selectionAsync();
-    scale.value = withSpring(0.97, SPRING_CONFIGS.tight);
-    translateY.value = withTiming(1, { duration: 120 });
-    shadowOpacity.value = withTiming(0.12, { duration: 120 });
+    scale.set(withSpring(0.97, SPRING_CONFIGS.tight));
+    translateY.set(withTiming(1, { duration: 120 }));
+    shadowOpacity.set(withTiming(0.12, { duration: 120 }));
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, SPRING_CONFIGS.tight);
-    translateY.value = withTiming(0, { duration: 200 });
-    shadowOpacity.value = withTiming(0.08, { duration: 200 });
+    scale.set(withSpring(1, SPRING_CONFIGS.tight));
+    translateY.set(withTiming(0, { duration: 200 }));
+    shadowOpacity.set(withTiming(0.08, { duration: 200 }));
   };
 
   return (

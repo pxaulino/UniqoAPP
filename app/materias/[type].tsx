@@ -1,3 +1,6 @@
+import { useBack } from '@/components/academic/AcademicForm';
+import { subjectStatus, sumCredits, STATUS_LABELS } from '@/src/academic/calculations';
+import { useAcademicStore } from '@/store/useAcademicStore';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, CalendarDays, CheckCircle2, ChevronDown, Clock3, Layers3 } from 'lucide-react-native';
 import React from 'react';
@@ -5,12 +8,12 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Card from '@/components/ui/Card';
-import { AcademicRecord, AcademicRecordStatus, academicRecords, COLORS } from '@/constants/mockData';
+import { COLORS } from '@/constants/mockData';
 
 const pageConfig = {
   approved: {
     title: 'Materias aprobadas',
-    subtitle: 'Historial organizado por cuatrimestre',
+    subtitle: 'Historial organizado por período',
     label: 'Aprobada',
     icon: CheckCircle2,
     color: COLORS.success,
@@ -32,7 +35,7 @@ const pageConfig = {
     color: COLORS.warning,
     bg: COLORS.warningLight,
   },
-} satisfies Record<AcademicRecordStatus, {
+} satisfies Record<'approved' | 'pending' | 'in_progress', {
   title: string;
   subtitle: string;
   label: string;
@@ -41,39 +44,33 @@ const pageConfig = {
   bg: string;
 }>;
 
-function groupBySemester(records: AcademicRecord[]) {
-  return records.reduce<Record<number, AcademicRecord[]>>((groups, record) => {
-    groups[record.semester] = [...(groups[record.semester] ?? []), record];
-    return groups;
-  }, {});
-}
-
 export default function MateriasByStatusScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ type?: string }>();
+  const back = useBack('/(tabs)/progreso');
   const type = params.type === 'pending' || params.type === 'in_progress' ? params.type : 'approved';
   const config = pageConfig[type];
   const Icon = config.icon;
-  const records = academicRecords.filter((record) => record.status === type);
-  const totalCredits = records.reduce((sum, record) => sum + record.credits, 0);
-  const grouped = groupBySemester(records);
-  const semesters = Object.keys(grouped).map(Number).sort((a, b) => a - b);
-  const [openSemesters, setOpenSemesters] = React.useState<number[]>(() => (semesters[0] ? [semesters[0]] : []));
+  const { subjects, rules, periods } = useAcademicStore((state) => state.data);
+  const records = subjects.filter((record) => {
+    const status = subjectStatus(record, rules);
+    return status === type || (type === 'pending' && (status === 'withdrawn' || status === 'failed'));
+  });
+  const totalCredits = sumCredits(records);
+  const groups = [...periods, { id: null, name: 'Sin período' }]
+    .map((period) => ({ ...period, records: records.filter(({ periodId }) => periodId === period.id) }))
+    .filter((period) => period.records.length > 0);
+  const [closed, setClosed] = React.useState<(string | null)[]>([]);
 
-  const toggleSemester = (semester: number) => {
-    setOpenSemesters((current) =>
-      current.includes(semester)
-        ? current.filter((item) => item !== semester)
-        : [...current, semester]
-    );
-  };
+  const toggleSemester = (id: string | null) => setClosed((current) =>
+    current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
 
   return (
     <Animated.View entering={FadeIn.duration(260)} className="flex-1">
       <SafeAreaView className="flex-1 bg-bg">
         <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="px-5 pb-10 pt-3">
           <View className="mb-5 flex-row items-center justify-between">
-            <Pressable onPress={() => router.back()} className="h-10 w-10 items-center justify-center rounded-2xl bg-white">
+            <Pressable onPress={back} accessibilityRole="button" accessibilityLabel="Volver" className="h-10 w-10 items-center justify-center rounded-2xl bg-white">
               <ArrowLeft size={21} color={COLORS.text} />
             </Pressable>
             <Text className="text-[16px] font-bold text-text">Detalle academico</Text>
@@ -116,23 +113,24 @@ export default function MateriasByStatusScreen() {
             </Card>
             <Card padding={14} radius={18} className="flex-1">
               <Text className="text-[12px] font-semibold text-muted">Periodos</Text>
-              <Text className="mt-2 text-[22px] font-bold text-text">{semesters.length}</Text>
+              <Text className="mt-2 text-[22px] font-bold text-text">{groups.length}</Text>
             </Card>
           </View>
 
-          {semesters.map((semester) => {
-            const semesterRecords = grouped[semester];
-            const semesterCredits = semesterRecords.reduce((sum, record) => sum + record.credits, 0);
-            const isOpen = openSemesters.includes(semester);
+          {!groups.length ? <Text className="text-muted">Sin materias en esta categoría.</Text> : null}
+          {groups.map((semester) => {
+            const semesterRecords = semester.records;
+            const semesterCredits = sumCredits(semesterRecords);
+            const isOpen = !closed.includes(semester.id);
 
             return (
               <Animated.View
-                key={semester}
+                key={semester.id ?? 'unassigned'}
                 layout={LinearTransition.duration(160)}
                 className="mb-4"
               >
                 <Pressable
-                  onPress={() => toggleSemester(semester)}
+                  onPress={() => toggleSemester(semester.id)}
                   className="flex-row items-center gap-3 rounded-[18px] bg-white px-4 py-4"
                   style={{
                     shadowColor: COLORS.primary,
@@ -148,7 +146,7 @@ export default function MateriasByStatusScreen() {
                     <Layers3 size={18} color={config.color} />
                   </View>
                   <View className="flex-1">
-                    <Text className="text-[16px] font-bold text-text">Cuatrimestre {semester}</Text>
+                    <Text className="text-[16px] font-bold text-text">{semester.name}</Text>
                     <Text className="mt-1 text-[12px] font-semibold text-muted">
                       {semesterRecords.length} materias - {semesterCredits} creditos
                     </Text>
@@ -175,7 +173,9 @@ export default function MateriasByStatusScreen() {
                       style={{ backgroundColor: 'rgba(255,255,255,0.98)' }}
                     >
                       {semesterRecords.map((record, index) => (
-                        <View
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={() => router.push({ pathname: '/materia/[id]', params: { id: record.id } })}
                           key={record.id}
                           className="flex-row items-center gap-3 px-4 py-4"
                           style={
@@ -194,9 +194,9 @@ export default function MateriasByStatusScreen() {
                             </Text>
                           </View>
                           <View style={{ backgroundColor: config.bg }} className="rounded-full px-3 py-1.5">
-                            <Text style={{ color: config.color }} className="text-[11px] font-bold">{config.label}</Text>
+                            <Text style={{ color: config.color }} className="text-[11px] font-bold">{STATUS_LABELS[subjectStatus(record, rules)]}</Text>
                           </View>
-                        </View>
+                        </Pressable>
                       ))}
                     </Card>
                   </Animated.View>

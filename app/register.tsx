@@ -1,1 +1,1 @@
-export { default } from "@/src/screens/RegisterScreen";
+export { default } from './index';

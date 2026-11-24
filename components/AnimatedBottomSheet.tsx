@@ -14,6 +14,7 @@ import {
     ModalProps,
     Pressable,
     View,
+    type ViewInstance,
     ViewStyle,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -45,7 +46,7 @@ interface AnimatedBottomSheetProps extends Omit<ModalProps, 'transparent' | 'ani
 /**
  * Premium animated bottom sheet with drag-to-dismiss
  */
-export const AnimatedBottomSheet = React.forwardRef<View, AnimatedBottomSheetProps>(
+export const AnimatedBottomSheet = React.forwardRef<ViewInstance, AnimatedBottomSheetProps>(
   (
     {
       visible,

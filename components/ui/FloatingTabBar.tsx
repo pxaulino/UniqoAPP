@@ -10,11 +10,11 @@ import AcademicActionCenter from '../action-center/AcademicActionCenter';
 import { platformShadow } from '@/utils/platformStyles';
 
 const TABS = [
-  { label: 'Inicio', icon: Home, route: '/(tabs)/' },
+  { label: 'Inicio', icon: Home, route: '/(tabs)' },
   { label: 'Universidades', icon: BookOpen, route: '/(tabs)/universidades' },
   { label: 'Mis estudios', icon: CalendarDays, route: '/(tabs)/planner' },
   { label: 'Perfil', icon: UserRound, route: '/(tabs)/cuenta' },
-];
+] as const;
 
 function isTabActive(pathname: string, route: string) {
   const normalizedRoute = route.replace('/(tabs)', '') || '/';
@@ -52,7 +52,8 @@ export default function FloatingTabBar() {
             return (
               <Pressable
                 key={tab.route}
-                onPress={() => router.push(tab.route as never)}
+                accessibilityRole="tab" accessibilityState={{ selected: active }}
+                onPress={() => router.navigate(tab.route)}
                 className="flex-1 items-center justify-center"
               >
                 <View
@@ -76,7 +77,7 @@ export default function FloatingTabBar() {
 
           <FloatingActionButton 
             isOpen={isActionCenterVisible}
-            onPress={() => setIsActionCenterVisible(!isActionCenterVisible)} 
+            onPress={() => setIsActionCenterVisible(true)}
           />
 
           {TABS.slice(2).map((tab) => {
@@ -85,7 +86,8 @@ export default function FloatingTabBar() {
             return (
               <Pressable
                 key={tab.route}
-                onPress={() => router.push(tab.route as never)}
+                accessibilityRole="tab" accessibilityState={{ selected: active }}
+                onPress={() => router.navigate(tab.route)}
                 className="flex-1 items-center justify-center"
               >
                 <View
@@ -109,10 +111,9 @@ export default function FloatingTabBar() {
         </View>
       </View>
 
-      <AcademicActionCenter 
-        isVisible={isActionCenterVisible} 
-        onClose={() => setIsActionCenterVisible(false)} 
-      />
+      {isActionCenterVisible && (
+        <AcademicActionCenter onClose={() => setIsActionCenterVisible(false)} />
+      )}
     </>
   );
 }

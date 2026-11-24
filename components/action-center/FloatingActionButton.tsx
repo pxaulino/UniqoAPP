@@ -25,9 +25,9 @@ export default function FloatingActionButton({ onPress, isOpen }: FloatingAction
   const shadowOpacity = useSharedValue(0.35);
 
   React.useEffect(() => {
-    openScale.value = withSpring(isOpen ? 1.08 : 1, {
+    openScale.set(withSpring(isOpen ? 1.08 : 1, {
       ...SPRING_CONFIGS.bouncy,
-    });
+    }));
   }, [isOpen, openScale]);
 
   const fabStyle = useAnimatedStyle(() => {
@@ -41,17 +41,20 @@ export default function FloatingActionButton({ onPress, isOpen }: FloatingAction
 
   const handlePressIn = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    scale.value = withSpring(0.85, SPRING_CONFIGS.tight);
-    shadowOpacity.value = withTiming(0.5, { duration: 100 });
+    scale.set(withSpring(0.85, SPRING_CONFIGS.tight));
+    shadowOpacity.set(withTiming(0.5, { duration: 100 }));
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, SPRING_CONFIGS.tight);
-    shadowOpacity.value = withTiming(0.35, { duration: 200 });
+    scale.set(withSpring(1, SPRING_CONFIGS.tight));
+    shadowOpacity.set(withTiming(0.35, { duration: 200 }));
   };
 
   return (
     <AnimatedPressable
+      accessibilityRole="button"
+      accessibilityLabel="Centro académico"
+      accessibilityState={{ expanded: isOpen }}
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}

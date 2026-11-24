@@ -5,6 +5,12 @@ import '../global.css';
 import '../nativewind-interop';
 import { configureTypography } from '@/constants/typography';
 import AppFrame from '@/components/ui/AppFrame';
+import { ConfirmAction, FormButton, FormError, useSave } from '@/components/academic/AcademicForm';
+import { COLORS } from '@/constants/mockData';
+import { useAcademicStore } from '@/store/useAcademicStore';
+import { useEffect } from 'react';
+import { ActivityIndicator, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 configureTypography();
 
@@ -12,9 +18,33 @@ export const unstable_settings = {
   anchor: 'index',
 };
 
-export default function RootLayout() {
+function AcademicStartup() {
+  const status = useAcademicStore((state) => state.status);
+  const error = useAcademicStore((state) => state.error);
+  const initialize = useAcademicStore((state) => state.initialize);
+  const reset = useAcademicStore((state) => state.reset);
+  const save = useSave();
+
+  useEffect(() => { void initialize(); }, [initialize]);
   return (
-    <AppFrame>
+    <View className="flex-1 justify-center px-8">
+      {status === 'loading' ? <ActivityIndicator accessibilityLabel="Cargando datos locales" color={COLORS.primary} /> : (
+        <>
+          <Text accessibilityRole="header" className="text-[21px] font-bold text-text">Datos locales</Text>
+          <FormError error={error ?? ''} />
+          <FormError error={save.error} />
+          <FormButton label="Reintentar" onPress={() => save.run(initialize)} disabled={save.busy} />
+          <ConfirmAction label="Reiniciar demo" prompt="Se iniciará una demo vacía. Se guardará una copia de los datos ilegibles."
+            busy={save.busy} onConfirm={() => save.run(reset)} />
+        </>
+      )}
+    </View>
+  );
+}
+
+function AcademicNavigator() {
+  return (
+    <>
       <Stack
         screenOptions={{
           headerShown: false,
@@ -93,7 +123,16 @@ export default function RootLayout() {
           options={{ headerShown: false, presentation: 'card' }}
         />
       </Stack>
-      <StatusBar style="dark" backgroundColor="#F8F7FF" />
-    </AppFrame>
+      <StatusBar style="dark" />
+    </>
+  );
+}
+
+export default function RootLayout() {
+  const status = useAcademicStore((state) => state.status);
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AppFrame>{status === 'ready' ? <AcademicNavigator /> : <AcademicStartup />}</AppFrame>
+    </GestureHandlerRootView>
   );
 }

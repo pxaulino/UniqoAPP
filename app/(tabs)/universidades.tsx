@@ -1,3 +1,4 @@
+import { useAcademicStore, useAcademicSummary } from '@/store/useAcademicStore';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -5,12 +6,10 @@ import { useRouter } from 'expo-router';
 import { Plus, Search, SlidersHorizontal } from 'lucide-react-native';
 import Svg, { Circle } from 'react-native-svg';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { COLORS, myUniversities, universities } from '@/constants/mockData';
+import { COLORS, universities } from '@/constants/mockData';
 import UniversityCard, { UniversityLogo } from '@/components/UniversityCard';
-import { UniversitiesSkeleton } from '@/components/skeleton/ScreenSkeletons';
-import { useFakeLoading } from '@/hooks/useFakeLoading';
 
-const filters = ['Todas', 'Nacionales', 'Privadas', 'Publicas'];
+const filters = ['Todas', 'Santo Domingo', 'Privadas', 'Públicas'];
 
 function MiniProgress({ value }: { value: number }) {
   const size = 46;
@@ -46,7 +45,9 @@ export default function UniversidadesScreen() {
   const [active, setActive] = useState('Todas');
   const [query, setQuery] = useState('');
   const router = useRouter();
-  const loading = useFakeLoading(950);
+  const plan = useAcademicStore((state) => state.data.plan);
+  const { percent } = useAcademicSummary();
+  const catalogItem = universities.find((item) => [item.name, item.fullName, item.slug].includes(plan?.university ?? ''));
 
   const filtered = useMemo(
     () =>
@@ -55,14 +56,12 @@ export default function UniversidadesScreen() {
         const matchesFilter =
           active === 'Todas' ||
           (active === 'Privadas' && university.type === 'Privada') ||
-          (active === 'Publicas' && university.type === 'Publica') ||
-          (active === 'Nacionales' && university.location.includes('Santo Domingo'));
+          (active === 'Públicas' && university.type === 'Publica') ||
+          (active === 'Santo Domingo' && university.location.includes('Santo Domingo'));
         return matchesQuery && matchesFilter;
       }),
     [active, query]
   );
-
-  if (loading) return <UniversitiesSkeleton />;
 
   return (
     <Animated.View entering={FadeIn.duration(260)} className="flex-1">
@@ -72,23 +71,23 @@ export default function UniversidadesScreen() {
           <View className="mb-3 flex-row items-center justify-between">
             <Text className="text-[17px] font-bold text-white">Mis Universidades</Text>
             <View className="rounded-xl bg-white/16 px-3 py-1.5">
-              <Text className="text-[13px] font-semibold text-white">{myUniversities.length} activas</Text>
+              <Text className="text-[13px] font-semibold text-white">{plan ? 1 : 0} activas</Text>
             </View>
           </View>
 
-          {myUniversities.map((university) => (
-            <View key={university.id} className="mb-2 flex-row items-center gap-3 rounded-[16px] bg-white px-3 py-2.5">
-              <UniversityLogo color={university.color} text={university.name.toLowerCase()} logo={university.logo} size={44} />
+          {plan ? (
+            <Pressable accessibilityRole="button" onPress={() => router.push('/agregar-universidad')} className="mb-2 flex-row items-center gap-3 rounded-[16px] bg-white px-3 py-2.5">
+              <UniversityLogo color={catalogItem?.color ?? COLORS.primary} text={plan.university.slice(0, 2)} logo={catalogItem?.logo} size={44} />
               <View className="flex-1">
-                <Text className="text-[14px] font-bold text-text">{university.name}</Text>
-                <Text className="mt-0.5 text-[13px] font-medium text-muted">{university.career}</Text>
+                <Text className="text-[14px] font-bold text-text">{plan.university}</Text>
+                <Text className="mt-0.5 text-[13px] font-medium text-muted">{plan.career}</Text>
               </View>
-              <MiniProgress value={university.progress} />
-            </View>
-          ))}
+              <MiniProgress value={percent} />
+            </Pressable>
+          ) : <Text className="mb-3 text-white">Agrega la universidad donde estudias.</Text>}
 
           <Pressable
-            onPress={() => router.push('/agregar-universidad' as never)}
+            onPress={() => router.push('/agregar-universidad')}
             className="mt-1 flex-row items-center justify-center gap-2 rounded-[15px] border border-dashed border-white/55 bg-white py-3"
           >
             <Plus size={18} color={COLORS.primary} />

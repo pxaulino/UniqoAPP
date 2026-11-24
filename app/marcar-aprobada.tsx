@@ -1,54 +1,57 @@
+import { Field, FormError, useBack, useSave } from '@/components/academic/AcademicForm';
+import { STATUS_LABELS, subjectStatus, sumCredits } from '@/src/academic/calculations';
+import { parseDecimal } from '@/src/academic/model';
+import { useAcademicStore } from '@/store/useAcademicStore';
 import Card from '@/components/ui/Card';
-import ProgressBar from '@/components/ui/ProgressBar';
-import { COLORS, subjects } from '@/constants/mockData';
+import { COLORS } from '@/constants/mockData';
 import { TYPOGRAPHY } from '@/constants/typography';
-import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
 import {
   ArrowLeft,
-  Award,
   BadgeCheck,
   BookOpenCheck,
   CheckSquare,
   Clock3,
   GraduationCap,
   Search,
-  SlidersHorizontal,
   Sparkles,
-  TrendingUp,
 } from 'lucide-react-native';
 import React from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const candidates = subjects.filter((subject) => subject.status === 'available' || subject.status === 'in_progress');
-
 export default function MarcarAprobadaScreen() {
-  const router = useRouter();
+  const back = useBack('/(tabs)/planner');
+  const { subjects, rules } = useAcademicStore((state) => state.data);
+  const approve = useAcademicStore((state) => state.approveSubjects);
+  const { busy, error, run } = useSave();
+  const [grade, setGrade] = React.useState('');
+  const candidates = subjects.filter((subject) => {
+    const status = subjectStatus(subject, rules);
+    return status !== 'approved' && status !== 'withdrawn';
+  });
   const [query, setQuery] = React.useState('');
   const [selected, setSelected] = React.useState<string[]>([]);
 
   const selectedSubjects = candidates.filter((subject) => selected.includes(subject.id));
-  const creditsToApprove = selectedSubjects.reduce((sum, subject) => sum + subject.credits, 0);
+  const creditsToApprove = sumCredits(selectedSubjects);
   const filtered = candidates.filter((subject) =>
     `${subject.name} ${subject.code}`.toLowerCase().includes(query.toLowerCase())
   );
 
   const toggleSubject = (id: string) => {
-    Haptics.selectionAsync();
     setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
   };
 
   return (
     <Animated.View entering={FadeIn.duration(240)} className="flex-1">
       <SafeAreaView className="flex-1 bg-bg">
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="px-5 pb-9 pt-2">
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerClassName="px-5 pb-9 pt-2">
           <View className="mb-5 flex-row items-center justify-between">
             <Pressable
-              onPress={() => router.back()}
+              onPress={back} accessibilityRole="button" accessibilityLabel="Volver"
               className="h-10 w-10 items-center justify-center rounded-2xl"
               style={{
                 shadowOpacity: 0,
@@ -125,7 +128,7 @@ export default function MarcarAprobadaScreen() {
                     <BadgeCheck size={20} color={COLORS.white} />
                   </View>
                   <View>
-                    <Text style={{ color: 'rgba(255,255,255,0.8)' }} className="text-[12px] font-semibold">Creditos a sumar</Text>
+                    <Text style={{ color: 'rgba(255,255,255,0.8)' }} className="text-[12px] font-semibold">Créditos a sumar</Text>
                     <Text className="mt-1 text-[23px] font-bold text-white">{creditsToApprove}</Text>
                   </View>
                 </View>
@@ -136,7 +139,7 @@ export default function MarcarAprobadaScreen() {
                   </View>
                   <View>
                     <Text style={{ color: 'rgba(255,255,255,0.8)' }} className="text-[12px] font-semibold">Materias</Text>
-                    <Text className="mt-1 text-[23px] font-bold text-white">{selected.length}</Text>
+                    <Text className="mt-1 text-[23px] font-bold text-white">{selectedSubjects.length}</Text>
                   </View>
                 </View>
               </View>
@@ -163,35 +166,23 @@ export default function MarcarAprobadaScreen() {
               <TextInput
                 value={query}
                 onChangeText={setQuery}
-                placeholder="Buscar materia o codigo..."
+                placeholder="Buscar materia o código…"
                 placeholderTextColor={COLORS.muted}
                 className="ml-3 flex-1 text-[14px] font-medium text-text"
               />
             </View>
-            <Pressable
-              className="h-[48px] w-[48px] items-center justify-center rounded-[15px] bg-white"
-              style={{
-                shadowColor: COLORS.primary,
-                shadowOffset: { width: 0, height: 8 },
-                shadowOpacity: 0.055,
-                shadowRadius: 16,
-                elevation: 3,
-              }}
-            >
-              <SlidersHorizontal size={17} color={COLORS.muted} strokeWidth={2} />
-            </Pressable>
           </View>
 
           <View className="mb-4">
+            {!filtered.length ? <Text className="mb-4 text-muted">No hay materias que coincidan.</Text> : null}
             {filtered.map((subject, index) => {
               const isSelected = selected.includes(subject.id);
-              const isCurrent = subject.status === 'in_progress';
+              const isCurrent = subjectStatus(subject, rules) === 'in_progress';
               const color = isCurrent ? COLORS.warning : COLORS.secondary;
-              const progress = isCurrent ? 0.84 : subject.id === 'eda201' ? 0.55 : 0.64;
 
               return (
                 <Animated.View key={subject.id} entering={FadeInDown.delay(index * 55).duration(380).springify().damping(18)}>
-                  <Pressable onPress={() => toggleSubject(subject.id)}>
+                  <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: isSelected }} onPress={() => toggleSubject(subject.id)}>
                     <Card padding={0} radius={20} className="mb-3 overflow-hidden">
                       <View className="flex-row items-center gap-3 px-3 py-3.5">
                         <View
@@ -208,14 +199,13 @@ export default function MarcarAprobadaScreen() {
                               style={{ backgroundColor: isCurrent ? COLORS.warningLight : COLORS.blueLight }}
                             >
                               <Text style={{ color }} className="text-[11px] font-bold">
-                                {isCurrent ? 'En curso' : 'Disponible'}
+                                {STATUS_LABELS[subjectStatus(subject, rules)]}
                               </Text>
                             </View>
                           </View>
                           <Text className="mb-2 text-[12px] font-semibold text-muted">
-                            {subject.code} - {subject.credits} creditos
+                            {subject.code} - {subject.credits} créditos
                           </Text>
-                          <ProgressBar progress={progress} color={color} trackColor="#EEEAFB" height={5} />
                         </View>
                         <View
                           className="h-7 w-7 items-center justify-center rounded-lg border-2"
@@ -234,29 +224,15 @@ export default function MarcarAprobadaScreen() {
             })}
           </View>
 
-          <Card padding={0} radius={22} className="mb-5 overflow-hidden" style={{ backgroundColor: '#F2ECFF' }}>
-            <View className="flex-row items-center px-4 py-4">
-              <View className="h-11 w-11 items-center justify-center rounded-[15px] bg-white">
-                <Award size={21} color={COLORS.primary} strokeWidth={2} />
-              </View>
-              <View className="ml-3 flex-1">
-                <Text className="text-[15px] font-bold text-text">Calificacion final estimada</Text>
-                <Text className="mt-1 text-[12px] font-semibold text-muted">Usada para estimar tu promedio</Text>
-              </View>
-              <View className="items-end">
-                <Text className="text-[30px] font-bold text-primary">90</Text>
-                <Text className="text-[12px] font-semibold text-muted">Actual</Text>
-              </View>
-            </View>
-            <View className="mx-4 mb-4 flex-row items-center justify-center rounded-full bg-white py-2.5">
-              <TrendingUp size={15} color={COLORS.success} />
-              <Text className="ml-2 text-[13px] font-bold text-success">+5%</Text>
-              <Text className="text-[13px] font-semibold text-muted"> desde tu ultima actualizacion</Text>
-            </View>
+          <Card padding={16} radius={20} className="mb-4">
+            <Field label="Nota final para las materias seleccionadas" value={grade} onChangeText={setGrade}
+              inputMode="decimal" placeholder={rules.passing + ' a ' + rules.maximum} />
+            <FormError error={error} />
           </Card>
 
           <Pressable
-            onPress={() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)}
+            accessibilityRole="button" disabled={busy || !selectedSubjects.length}
+            onPress={() => run(() => approve(selectedSubjects.map(({ id }) => id), parseDecimal(grade)), back)}
             className="flex-row items-center justify-center rounded-[15px] bg-[#6C4DFF] py-[17px]"
             style={{
               shadowColor: '#5B38F5',
@@ -267,7 +243,7 @@ export default function MarcarAprobadaScreen() {
             }}
           >
             <CheckSquare size={20} color={COLORS.white} strokeWidth={2.3} />
-            <Text className="ml-3 text-[15px] font-bold text-white">Marcar seleccionadas ({selected.length})</Text>
+            <Text className="ml-3 text-[15px] font-bold text-white">Marcar seleccionadas ({selectedSubjects.length})</Text>
           </Pressable>
         </ScrollView>
       </SafeAreaView>
